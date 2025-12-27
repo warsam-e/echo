@@ -1,5 +1,4 @@
 import chalk, { type ChalkInstance } from 'chalk';
-import { config } from 'dotenv';
 import {
 	Client,
 	type ClientOptions,
@@ -10,7 +9,8 @@ import {
 	type Snowflake,
 	Team,
 	User,
-} from '$discord.ts';
+} from 'discord.js';
+import { config } from 'dotenv';
 import { type Command, InteractionHandler } from '$mod/index.ts';
 import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
@@ -119,8 +119,8 @@ class Echo extends Client {
 	}
 }
 
+export * from 'discord.js';
 export * from '$cmds/index.ts';
-export * from '$discord.ts';
 export * from '$mod/index.ts';
 export { Echo };
 export default Echo;

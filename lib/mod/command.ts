@@ -15,7 +15,7 @@ import {
 	type MessageContextMenuCommandInteraction,
 	type ModalSubmitInteraction,
 	type UserContextMenuCommandInteraction,
-} from '$discord.ts';
+} from 'discord.js';
 import type { Echo } from '$index.ts';
 import { Locales, type LocalesPartial, set_locales } from './locales.ts';
 

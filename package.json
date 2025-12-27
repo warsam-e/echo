@@ -1,7 +1,7 @@
 {
 	"name": "@warsam-e/echo",
 	"description": "Simplifies the creation and handling of slash commands in Discord bots.",
-	"version": "7.3.0",
+	"version": "7.3.1",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",

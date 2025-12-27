@@ -1,6 +1,6 @@
 import type { StringLike } from 'bun';
 import chalk from 'chalk';
-import type { Awaitable } from '$discord.ts';
+import type { Awaitable } from 'discord.js';
 import type { Echo } from '$index.ts';
 
 export const echo_color = chalk.rgb(114, 137, 218);

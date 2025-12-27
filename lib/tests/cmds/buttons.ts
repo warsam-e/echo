@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Command } from '$index.ts';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Command } from '@index.ts';
 
 export default new Command({
 	name: 'buttons',

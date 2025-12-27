@@ -1,5 +1,5 @@
+import { ShardingManager } from 'discord.js';
 import { config } from 'dotenv';
-import { ShardingManager } from '$discord.ts';
 import { _echo_log } from './logging.ts';
 
 config({ quiet: true });

@@ -1,4 +1,4 @@
-import { ApplicationCommandType, Command, EmbedBuilder } from '$index.ts';
+import { ApplicationCommandType, Command, EmbedBuilder } from '@index.ts';
 
 export default new Command({
 	name: 'Get PFP',

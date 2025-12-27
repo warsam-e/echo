@@ -1,4 +1,4 @@
-import { get_default_cmds } from '$index.ts';
+import { get_default_cmds } from '@index.ts';
 import ac from './ac.ts';
 import buttons from './buttons.ts';
 import cm from './cm.ts';

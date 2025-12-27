@@ -1,4 +1,4 @@
-import { Command } from '$index.ts';
+import { Command } from '@index.ts';
 
 export default new Command({
 	name: 'nsfw',

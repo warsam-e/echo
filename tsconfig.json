@@ -14,7 +14,8 @@
 		"strict": true,
 		"allowImportingTsExtensions": true,
 		"paths": {
-			"$*": ["./lib/*"]
+			"$*": ["./lib/*"],
+			"@*": ["./dist/*"]
 		}
 	},
 	"exclude": ["dist/", "node_modules", "**/node_modules/*"]

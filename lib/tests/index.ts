@@ -1,4 +1,4 @@
-import Echo, { ActivityType } from '$index.ts';
+import Echo, { ActivityType } from '@index.js';
 import cmds from './cmds/index.ts';
 
 const bot = await new Echo({

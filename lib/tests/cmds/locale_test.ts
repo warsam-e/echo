@@ -1,4 +1,4 @@
-import { Command, set_locales } from '$index.ts';
+import { Command, set_locales } from '@index.ts';
 
 export default new Command({
 	name: set_locales({

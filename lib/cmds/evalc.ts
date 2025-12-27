@@ -1,5 +1,5 @@
 import { inspect } from 'node:util';
-import { ApplicationCommandOptionType } from '$discord.ts';
+import { ApplicationCommandOptionType } from 'discord.js';
 import type { Echo } from '$index.ts';
 import { Command } from '$mod/index.ts';
 

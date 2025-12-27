@@ -4,7 +4,7 @@ import {
 	type ApplicationCommandSubGroupData,
 	type Interaction,
 	InteractionType,
-} from '$discord.ts';
+} from 'discord.js';
 import type { Echo } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';

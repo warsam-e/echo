@@ -1,4 +1,4 @@
-import type { ApplicationCommand, Collection, Guild } from '$discord.ts';
+import type { ApplicationCommand, Collection, Guild } from 'discord.js';
 import type { Echo } from '$index.ts';
 import type { Command, CommandInfoExport } from './command.ts';
 import { _echo_log } from './logging.ts';
