@@ -15,10 +15,11 @@ import {
 	type MessageContextMenuCommandInteraction,
 	type ModalSubmitInteraction,
 	type UserContextMenuCommandInteraction,
-} from 'discord.js';
-import type { Echo } from '..';
-import { Locales, type LocalesPartial, set_locales } from './locales';
+} from '$discord.ts';
+import type { Echo } from '$index.ts';
+import { Locales, type LocalesPartial, set_locales } from './locales.ts';
 
+// biome-ignore lint/suspicious/noConfusingVoidType: it's intended
 export type CommandResponse = void | Promise<InteractionResponse | void | Message>;
 
 export type InteractionHadlerCB<T extends Interaction, Inst = Echo> = (bot: Inst, int: T) => CommandResponse;
@@ -247,12 +248,14 @@ export class Command<Inst = Echo> {
 		return this;
 	}
 
-	async handle<Type extends keyof CommandInteractionHandlers<Inst>>(
-		type: Type,
+	async handle<T extends keyof CommandInteractionHandlers<Inst>>(
+		type: T,
 		bot: Inst,
 		int: Interaction,
-	): Promise<Message | InteractionResponse | void> {
-		if (this.#_handlers[type])
-			return (this.#_handlers[type] as CommandInteractionHandlers<Inst>[Type])(bot, int as any);
+	): Promise<CommandResponse> {
+		const handler = this.#_handlers[type];
+		if (!handler) return;
+		// biome-ignore lint/suspicious/noExplicitAny: it has to be for now
+		return handler(bot, int as any);
 	}
 }

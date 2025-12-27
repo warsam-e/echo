@@ -1,14 +1,14 @@
-import { get_default_cmds } from '../..';
-import ac from './ac';
-import buttons from './buttons';
-import cm from './cm';
-import locale_test from './locale_test';
-import modal from './modal';
-import nsfw_cmd from './nsfw_cmd';
-import profile from './profile';
-import scrollable from './scrollable';
-import sub from './sub';
-import user from './user';
+import { get_default_cmds } from '$index.ts';
+import ac from './ac.ts';
+import buttons from './buttons.ts';
+import cm from './cm.ts';
+import locale_test from './locale_test.ts';
+import modal from './modal.ts';
+import nsfw_cmd from './nsfw_cmd.ts';
+import profile from './profile.ts';
+import scrollable from './scrollable.ts';
+import sub from './sub.ts';
+import user from './user.ts';
 
 const default_cmds = get_default_cmds();
 

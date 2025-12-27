@@ -1,13 +1,13 @@
 import {
-    ApplicationCommandOptionType,
-    type ApplicationCommandSubCommandData,
-    type ApplicationCommandSubGroupData,
-    type Interaction,
-    InteractionType,
-} from 'discord.js';
-import type { Echo } from '..';
-import type { Command, CommandInteractionHandlers } from './command';
-import { _echo_log, echo_color, green, red } from './logging';
+	ApplicationCommandOptionType,
+	type ApplicationCommandSubCommandData,
+	type ApplicationCommandSubGroupData,
+	type Interaction,
+	InteractionType,
+} from '$discord.ts';
+import type { Echo } from '$index.ts';
+import type { Command, CommandInteractionHandlers } from './command.ts';
+import { _echo_log, echo_color, green, red } from './logging.ts';
 
 /**
  * Handler for interactions.

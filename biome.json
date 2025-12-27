@@ -1,12 +1,14 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
-	"assist": { "actions": { "source": { "organizeImports": "off" } } },
+	"$schema": "https://biomejs.dev/schemas/2.3.8/schema.json",
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"files": {
+		"includes": ["**", "!!dist", "!!docs", "!!**/*.js"]
+	},
 	"formatter": {
 		"enabled": true,
 		"lineWidth": 120,
 		"indentWidth": 4,
-		"indentStyle": "tab",
-		"includes": ["**", "!**/dist/*", "!**/docs/*", "!**/node_modules/*"]
+		"indentStyle": "tab"
 	},
 	"javascript": {
 		"formatter": {
@@ -14,29 +16,20 @@
 		}
 	},
 	"linter": {
-		"includes": ["**", "!**/dist/*", "!**/docs/*", "!**/node_modules/*"],
 		"enabled": true,
 		"rules": {
 			"recommended": true,
 			"suspicious": {
-				"noConfusingVoidType": "off",
-				"noExplicitAny": "off"
+				"noAssignInExpressions": "off"
 			},
 			"correctness": {
 				"noUnusedImports": "error",
-				"noUnusedFunctionParameters": "error"
+				"noUnusedVariables": "error",
+				"useImportExtensions": "error"
 			},
 			"style": {
-				"noParameterAssign": "error",
-				"useAsConstAssertion": "error",
-				"useDefaultParameterLast": "error",
-				"useEnumInitializers": "error",
-				"useSelfClosingElements": "error",
-				"useSingleVarDeclarator": "error",
-				"noUnusedTemplateLiteral": "error",
-				"useNumberNamespace": "error",
-				"noInferrableTypes": "error",
-				"noUselessElse": "error"
+				"noParameterAssign": "off",
+				"useExportType": "error"
 			}
 		}
 	}

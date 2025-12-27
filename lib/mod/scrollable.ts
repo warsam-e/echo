@@ -1,5 +1,6 @@
 import {
 	ActionRowBuilder,
+	type AnySelectMenuBuilder,
 	type APIEmbed,
 	type AttachmentBuilder,
 	type Awaitable,
@@ -13,9 +14,9 @@ import {
 	type Message,
 	type MessageComponentInteraction,
 	type RepliableInteraction,
-} from 'discord.js';
-import type { AnySelectMenuBuilder } from './types';
+} from '$discord.ts';
 
+// biome-ignore lint/suspicious/noExplicitAny: it's needed here
 export type ScrollableDataType = Array<Record<string, any>>;
 export type ScrollableDataFn<Data extends ScrollableDataType> = () => Awaitable<Data>;
 

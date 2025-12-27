@@ -1,7 +1,7 @@
-import type { Echo } from '..';
-import echo from './echo';
-import evalc from './evalc';
-import ping from './ping';
+import type { Echo } from '$index.ts';
+import echo from './echo.ts';
+import evalc from './evalc.ts';
+import ping from './ping.ts';
 
 /**
  * returns the default commands available.

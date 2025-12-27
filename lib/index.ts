@@ -1,20 +1,20 @@
 import chalk, { type ChalkInstance } from 'chalk';
-import {
-    Client,
-    type ClientOptions,
-    Collection,
-    type ColorResolvable,
-    GatewayIntentBits,
-    type Snowflake,
-    Team,
-    User,
-    resolveColor,
-} from 'discord.js';
 import { config } from 'dotenv';
+import {
+	Client,
+	type ClientOptions,
+	Collection,
+	type ColorResolvable,
+	GatewayIntentBits,
+	resolveColor,
+	type Snowflake,
+	Team,
+	User,
+} from '$discord.ts';
+import { type Command, InteractionHandler } from '$mod/index.ts';
+import { _echo_log } from '$mod/logging.ts';
+import { _register_cmds } from '$mod/register.ts';
 import pkg from '../package.json';
-import { type Command, InteractionHandler } from './mod';
-import { _echo_log } from './mod/logging';
-import { _register_cmds } from './mod/register';
 
 config({ quiet: true });
 
@@ -119,8 +119,8 @@ class Echo extends Client {
 	}
 }
 
-export * from 'discord.js';
-export * from './cmds';
-export * from './mod';
+export * from '$cmds/index.ts';
+export * from '$discord.ts';
+export * from '$mod/index.ts';
 export { Echo };
 export default Echo;

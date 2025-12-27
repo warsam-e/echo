@@ -5,7 +5,7 @@
 	"excludeExternals": true,
 	"externalSymbolLinkMappings": {
 		"discord.js": {
-			"*": "https://discord.js.org/docs/packages/discord.js/14.22.1"
+			"*": "https://discord.js.org/docs/packages/discord.js/14.25.1"
 		},
 		"@discordjs/collection": {
 			"*": "https://discord.js.org/docs/packages/collection/main"

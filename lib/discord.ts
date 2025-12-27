@@ -5,6 +5,8 @@ import type {
 	UserSelectMenuBuilder,
 } from 'discord.js';
 
+export * from 'discord.js';
+
 export type AnySelectMenuBuilder =
 	| StringSelectMenuBuilder
 	| RoleSelectMenuBuilder

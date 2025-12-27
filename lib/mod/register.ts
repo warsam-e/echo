@@ -1,7 +1,7 @@
-import type { ApplicationCommand, Collection, Guild } from 'discord.js';
-import type { Echo } from '..';
-import type { Command, CommandInfoExport } from './command';
-import { _echo_log } from './logging';
+import type { ApplicationCommand, Collection, Guild } from '$discord.ts';
+import type { Echo } from '$index.ts';
+import type { Command, CommandInfoExport } from './command.ts';
+import { _echo_log } from './logging.ts';
 
 async function _register_global_command<Inst extends Echo>(bot: Inst, cmds: Collection<string, Command<Inst>>) {
 	if (!bot.application) return;

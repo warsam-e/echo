@@ -5,4 +5,5 @@ export default defineConfig({
 	minify: true,
 	entry: ['./lib/index.ts'],
 	sourcemap: true,
+	outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
 });

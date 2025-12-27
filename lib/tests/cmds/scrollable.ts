@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, Command, create_scrollable } from '../..';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, Command, create_scrollable } from '$index.ts';
 
 export default new Command({
 	name: 'scrollable',

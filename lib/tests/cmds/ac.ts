@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, Command } from '../..';
+import { ApplicationCommandOptionType, Command } from '$index.ts';
 
 export default new Command({
 	name: 'ac',

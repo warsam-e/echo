@@ -1,4 +1,4 @@
-import type { Locale as DiscordLocale } from '..';
+import type { Locale as DiscordLocale } from '$discord.ts';
 
 export type LocalesPartial = Partial<Record<DiscordLocale | 'default', string>>;
 

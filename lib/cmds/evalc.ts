@@ -1,7 +1,7 @@
-import { ApplicationCommandOptionType } from 'discord.js';
 import { inspect } from 'node:util';
-import type { Echo } from '..';
-import { Command } from '../mod';
+import { ApplicationCommandOptionType } from '$discord.ts';
+import type { Echo } from '$index.ts';
+import { Command } from '$mod/index.ts';
 
 export default <T extends Echo>() =>
 	new Command<T>({

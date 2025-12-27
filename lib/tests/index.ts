@@ -1,5 +1,5 @@
-import Echo, { ActivityType } from '../index.js';
-import cmds from './cmds/index.js';
+import Echo, { ActivityType } from '$index.ts';
+import cmds from './cmds/index.ts';
 
 const bot = await new Echo({
 	name: 'Echo Test',

@@ -10,7 +10,7 @@ import {
 	type CommandInfo,
 	type Echo,
 	type RepliableInteraction,
-} from '../..';
+} from '$index.ts';
 
 const handle_autocomplete = (_bot: Echo, int: AutocompleteInteraction) =>
 	int.respond([

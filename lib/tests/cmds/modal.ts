@@ -8,7 +8,7 @@ import {
 	ModalBuilder,
 	TextInputBuilder,
 	TextInputStyle,
-} from '../..';
+} from '$index.ts';
 
 export default new Command({
 	name: 'modal',

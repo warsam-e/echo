@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
-		"declaration": true,
+		"noEmit": true,
+		"declaration": false,
 		"forceConsistentCasingInFileNames": true,
 		"lib": ["ESNext"],
 		"module": "ESNext",
@@ -10,7 +11,11 @@
 		"downlevelIteration": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
-		"strict": true
+		"strict": true,
+		"allowImportingTsExtensions": true,
+		"paths": {
+			"$*": ["./lib/*"]
+		}
 	},
 	"exclude": ["dist/", "node_modules", "**/node_modules/*"]
 }
