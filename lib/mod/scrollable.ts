@@ -20,7 +20,8 @@ import {
 	type TopLevelComponentData,
 } from 'discord.js';
 
-export type ScrollableDataType = Array<Record<string, unknown>>;
+// biome-ignore lint/suspicious/noExplicitAny: it's needed here
+export type ScrollableDataType = Array<Record<string, any>>;
 export type ScrollableDataFn<Data extends ScrollableDataType> = () => Awaitable<Data>;
 
 export type ScrollableContent = {
