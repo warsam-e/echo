@@ -3,6 +3,7 @@
 	"out": "docs",
 	"plugin": ["typedoc-github-theme"],
 	"excludeExternals": true,
+	"excludeInternal": false,
 	"externalSymbolLinkMappings": {
 		"discord.js": {
 			"*": "https://discord.js.org/docs/packages/discord.js/14.25.1"

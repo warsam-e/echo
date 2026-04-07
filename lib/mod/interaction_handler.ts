@@ -1,10 +1,5 @@
-import {
-	ApplicationCommandOptionType,
-	type ApplicationCommandSubCommandData,
-	type ApplicationCommandSubGroupData,
-	type Interaction,
-	InteractionType,
-} from 'discord.js';
+import { inspect } from 'node:util';
+import { type Interaction, InteractionType } from 'discord.js';
 import type { Echo } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';
@@ -70,6 +65,14 @@ export class InteractionHandler {
 				}
 			}
 		}
+
+		if (interaction.isRepliable()) {
+			if (!interaction.replied)
+				console.warn(
+					`Interaction ${interaction.id} was not replied to.`,
+					inspect(interaction, { depth: 0, colors: true }),
+				);
+		}
 	}
 
 	#_findCommand(cmd_name: string): Command<Echo> | null {
@@ -115,68 +118,11 @@ export class InteractionHandler {
 			}
 		}
 		if (int.isMessageComponent()) {
-			const msg_int = int.message.interaction;
+			// const msg_int = int;
 
-			if (msg_int) {
-				if (msg_int.type === InteractionType.ApplicationCommand) {
-					let maincmd = this.#_findCommand(msg_int.commandName);
-
-					if (!maincmd) {
-						const [parent, ...sub] = msg_int.commandName.split(' ');
-
-						maincmd = this.#_findCommand(parent);
-						if (!maincmd) {
-							throw new Error('Command not found.');
-						}
-						cmds.push(maincmd);
-
-						if (sub.length > 0) {
-							const subs = maincmd.options.filter(
-								(o) =>
-									o.type === ApplicationCommandOptionType.SubcommandGroup ||
-									o.type === ApplicationCommandOptionType.Subcommand,
-							) as Array<ApplicationCommandSubCommandData | ApplicationCommandSubGroupData>;
-							// circulate through subcommands
-							const circular_sub = (maincmd: Command) => {
-								let found: Command | undefined;
-								for (const s of subs) {
-									if (s.name === sub[0]) {
-										if (s.type === ApplicationCommandOptionType.SubcommandGroup) {
-											const find = s.options?.find((o) => o.name === sub[1]);
-											if (find) {
-												const subcmd = maincmd.subcommands.find(
-													(c) => c.name.get('default') === `${s.name} ${find.name}`,
-												);
-												if (subcmd) {
-													cmds.push(subcmd);
-													found = subcmd;
-												}
-											}
-										} else {
-											const subcmd = maincmd.subcommands.find(
-												(c) => c.name.get('default') === s.name,
-											);
-											if (subcmd) {
-												cmds.push(subcmd);
-												found = subcmd;
-											}
-										}
-									}
-								}
-								return found;
-							};
-
-							const found = circular_sub(maincmd);
-							if (!found) throw new Error('Command not found.');
-							cmds.push(found);
-						}
-					} else {
-						cmds.push(maincmd);
-					}
-				}
-			} else {
-				cmds.push(...this.#_resolveCommandPath(int.customId));
-			}
+			// if (int.isButton()) cmds.push(...this.#_resolveCommandPath(int.customId));
+			// if(int.isAnySelectMenu())
+			cmds.push(...this.#_resolveCommandPath(int.customId));
 		}
 
 		if (int.isModalSubmit()) {
@@ -187,13 +133,14 @@ export class InteractionHandler {
 
 	#_resolveCommandPath(custom_id: string): Command[] {
 		const cmds: Command[] = [];
+		if (!custom_id.includes('-')) return cmds;
 		const split = custom_id.split('-');
 		split.splice(split.length - 1, 1);
 		const [cmdname, ...rest] = split;
 
 		const cmd = this.#_findCommand(cmdname);
 		if (!cmd) {
-			throw new Error('Command not found.');
+			throw new Error(`command with name ${cmdname} not found for custom id ${custom_id}`);
 		}
 		cmds.push(cmd);
 		if (rest.length > 0) {

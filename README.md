@@ -14,7 +14,7 @@
 ## Basic Usage
 
 ```ts
-import Echo, { Command } from '@warsam-e/echo';
+import Echo, { Command } from '$warsam-e/echo';
 
 let commands = [
 	new Command<Echo>({
@@ -52,7 +52,7 @@ Echo includes a class called `Scrollable` which can be used to create scrollable
 To initate this class, you can use the `create_scrollable` function.
 
 ```ts
-import { Command, create_scrollable } from '@warsam-e/echo';
+import { Command, create_scrollable } from '$warsam-e/echo';
 
 new Command({})
 .addHandler("chat_input", (bot, int) => create_scrollable({

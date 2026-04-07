@@ -5,10 +5,11 @@ import {
 	ButtonStyle,
 	Command,
 	EmbedBuilder,
+	LabelBuilder,
 	ModalBuilder,
 	TextInputBuilder,
 	TextInputStyle,
-} from '@index.ts';
+} from '$index.ts';
 
 export default new Command({
 	name: 'modal',
@@ -24,12 +25,13 @@ export default new Command({
 			.addHandler('button', async (_bot, int) => {
 				const modal = new ModalBuilder().setCustomId('modal-group-one-modal').setTitle('Modal');
 
-				const textInput = new TextInputBuilder()
-					.setCustomId('text')
-					.setLabel('Text input')
-					.setStyle(TextInputStyle.Paragraph);
-				const row = new ActionRowBuilder<TextInputBuilder>().addComponents(textInput);
-				modal.addComponents(row);
+				modal.addLabelComponents(
+					new LabelBuilder()
+						.setLabel('Text input')
+						.setTextInputComponent(
+							new TextInputBuilder().setCustomId('text').setStyle(TextInputStyle.Paragraph),
+						),
+				);
 
 				return int.showModal(modal);
 			})

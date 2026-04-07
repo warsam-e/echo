@@ -6,11 +6,11 @@ import {
 	ButtonBuilder,
 	type ButtonInteraction,
 	ButtonStyle,
+	type ChatInputCommandInteraction,
 	Command,
 	type CommandInfo,
 	type Echo,
-	type RepliableInteraction,
-} from '@index.ts';
+} from '$index.ts';
 
 const handle_autocomplete = (_bot: Echo, int: AutocompleteInteraction) =>
 	int.respond([
@@ -30,9 +30,9 @@ const handle_autocomplete = (_bot: Echo, int: AutocompleteInteraction) =>
 
 const handle_button = (_bot: Echo, int: ButtonInteraction) => int.reply(int.customId);
 
-const handle_chat = (_bot: Echo, int: RepliableInteraction) => {
+const handle_chat = (bot: Echo, int: ChatInputCommandInteraction) => {
 	const row = new ActionRowBuilder<ButtonBuilder>().addComponents([
-		new ButtonBuilder().setLabel('blah').setCustomId('ah').setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setLabel('blah').setCustomId(bot.customId('ah', int)).setStyle(ButtonStyle.Primary),
 	]);
 	return int.reply({
 		components: [row],

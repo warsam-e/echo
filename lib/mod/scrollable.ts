@@ -1,31 +1,37 @@
 import {
 	ActionRowBuilder,
-	type APIEmbed,
-	type AttachmentBuilder,
+	type ActionRowData,
+	type APIMessageTopLevelComponent,
 	type Awaitable,
 	ButtonBuilder,
 	type ButtonInteraction,
 	ButtonStyle,
-	type EmbedBuilder,
 	type InteractionEditReplyOptions,
 	type InteractionReplyOptions,
 	type InteractionResponse,
+	type JSONEncodable,
 	type Message,
+	type MessageActionRowComponentBuilder,
+	type MessageActionRowComponentData,
 	type MessageComponentInteraction,
+	MessageFlags,
 	type RepliableInteraction,
+	TextDisplayBuilder,
+	type TopLevelComponentData,
 } from 'discord.js';
-import type { AnySelectMenuBuilder } from '$discord.ts';
 
-// biome-ignore lint/suspicious/noExplicitAny: it's needed here
-export type ScrollableDataType = Array<Record<string, any>>;
+export type ScrollableDataType = Array<Record<string, unknown>>;
 export type ScrollableDataFn<Data extends ScrollableDataType> = () => Awaitable<Data>;
 
-export interface ScrollableContent {
-	content?: string;
-	embed?: EmbedBuilder | APIEmbed;
-	files?: AttachmentBuilder[];
-	components?: Array<ActionRowBuilder<ButtonBuilder | AnySelectMenuBuilder>>;
-}
+export type ScrollableContent = {
+	components: Array<
+		| JSONEncodable<APIMessageTopLevelComponent>
+		| TopLevelComponentData
+		| ActionRowData<MessageActionRowComponentData | MessageActionRowComponentBuilder>
+		| APIMessageTopLevelComponent
+	>;
+	files?: NonNullable<InteractionReplyOptions['files']>;
+};
 
 export type ScrollableControlType = 'initiator' | 'all';
 
@@ -39,7 +45,7 @@ export interface ScrollableData<Data extends ScrollableDataType> {
 	show_page_count?: boolean;
 	/**
 	 * The message to show when the data fetching fails
-	 * @default { content: "Failed to get data." }
+	 * @default "Failed to get data."
 	 */
 	fail_msg?: ScrollableContent;
 	/** The array data to be used in the scrollable */
@@ -57,7 +63,7 @@ async function _try_prom<T>(prom: Awaitable<T>): Promise<T | undefined> {
 	try {
 		return await prom;
 	} catch (e) {
-		console.error(e);
+		console.trace(e);
 	}
 }
 
@@ -77,12 +83,23 @@ class Scrollable<Data extends ScrollableDataType> {
 	private constructor(data: ScrollableData<Data>, res: Data) {
 		this.#_data = {
 			...data,
-			fail_msg: data.fail_msg ?? { content: 'Failed to get data.' },
+			fail_msg: data.fail_msg ?? Scrollable.#_default_failed_msg,
 			show_page_count: data.show_page_count ?? false,
 			controllable: data.controllable ?? 'initiator',
 		};
 		this.#_int = data.int;
 		this.#_scrollable_data = res;
+	}
+
+	static #_default_failed_msg: ScrollableContent = {
+		components: [new TextDisplayBuilder().setContent('Failed to get data.')],
+	};
+
+	static #_fail_payload<Editing extends boolean>(
+		fail_msg?: ScrollableContent,
+		_editing?: Editing,
+	): Editing extends true ? InteractionEditReplyOptions : InteractionReplyOptions {
+		return fail_msg ?? Scrollable.#_default_failed_msg;
 	}
 
 	async #_getContent() {
@@ -98,19 +115,18 @@ class Scrollable<Data extends ScrollableDataType> {
 	async #_updateReloading(val: boolean) {
 		const content = await this.#_getContent();
 		this.#_reloading = val;
-		this.#_int.editReply({ components: this.#_renderComponents(content.components) });
+		this.#_int.editReply(this.#_getPayload(content, true));
 	}
 
 	#_getPayload<Editing extends boolean>(
 		data: ScrollableContent,
 		_editing?: Editing,
 	): Editing extends true ? InteractionEditReplyOptions : InteractionReplyOptions {
-		if (data.content === undefined && data.embed === undefined && data.files === undefined)
-			throw new Error('No content, embed or files provided.');
 		return {
-			...(data.content !== undefined ? { content: data.content } : {}),
-			...(data.embed ? { embeds: [data.embed] } : {}),
+			content: '',
+			components: this.#_renderComponents(data),
 			files: data.files,
+			flags: [MessageFlags.IsComponentsV2],
 		};
 	}
 
@@ -132,14 +148,7 @@ class Scrollable<Data extends ScrollableDataType> {
 
 		const current_content = await this.#_getContent();
 
-		const components = this.#_renderComponents(current_content.components);
-
-		await _try_prom(
-			this.#_int.editReply({
-				components,
-				...this.#_getPayload(current_content, true),
-			}),
-		);
+		await _try_prom(this.#_int.editReply(this.#_getPayload(current_content, true)));
 
 		if (bint) this.#_updateReloading(false);
 	}
@@ -152,21 +161,19 @@ class Scrollable<Data extends ScrollableDataType> {
 	static async init<Data extends ScrollableDataType>(data: ScrollableData<Data>): Promise<void> {
 		const res = await _try_prom(data.data());
 		if (res) return new Scrollable(data, res).#init();
-		if (data.int.replied || data.int.deferred)
-			data.int.editReply(data.fail_msg ?? { content: 'Failed to get data.' });
-		else data.int.reply(data.fail_msg ?? { content: 'Failed to get data.' });
+		if (data.int.replied || data.int.deferred) data.int.editReply(Scrollable.#_fail_payload(data.fail_msg, true));
+		else data.int.reply(Scrollable.#_fail_payload(data.fail_msg, false));
 	}
 
-	#_renderComponents(
-		extra_rows?: ScrollableContent['components'],
-	): Array<ActionRowBuilder<ButtonBuilder | AnySelectMenuBuilder>> {
-		const rows: ActionRowBuilder<ButtonBuilder | AnySelectMenuBuilder>[] = [];
+	#_renderComponents(content: ScrollableContent): ScrollableContent['components'] {
+		// const rows: ScrollableContent['components'] = [];
 		const has_data = !!this.#_scrollable_data.length;
 		const can_go_back = !this.#_reloading && has_data && this.#_index !== 0;
 		const can_go_forward = !this.#_reloading && has_data && this.#_scrollable_data.length > this.#_index + 1;
 		const can_reload = !this.#_reloading;
 
-		if (extra_rows) rows.push(...extra_rows);
+		const { components: _orig } = content;
+		const components: ScrollableContent['components'] = [..._orig];
 
 		const btns = [
 			new ButtonBuilder()
@@ -194,16 +201,9 @@ class Scrollable<Data extends ScrollableDataType> {
 					]
 				: []),
 		];
+		components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(btns));
 
-		const chunks = [];
-		for (let i = 0; i < btns.length; i += 5) chunks.push(btns.slice(i, i + 5));
-
-		for (const chunk of chunks) {
-			const row = new ActionRowBuilder<ButtonBuilder>().addComponents(chunk);
-			rows.push(row);
-		}
-
-		return rows;
+		return components;
 	}
 
 	async #init() {
@@ -213,22 +213,11 @@ class Scrollable<Data extends ScrollableDataType> {
 		let msg: Message | InteractionResponse | undefined;
 
 		const current_content = await this.#_getContent();
-		const components = this.#_renderComponents(current_content.components);
 
 		if (int.deferred || int.replied) {
-			msg = await _try_prom(
-				this.#_int.editReply({
-					components,
-					...this.#_getPayload(current_content, true),
-				}),
-			);
+			msg = await _try_prom(this.#_int.editReply(this.#_getPayload(current_content, true)));
 		} else {
-			msg = await _try_prom(
-				this.#_int.reply({
-					components,
-					...this.#_getPayload(current_content, false),
-				}),
-			);
+			msg = await _try_prom(this.#_int.reply(this.#_getPayload(current_content, false)));
 		}
 
 		if (!msg) throw new Error('Scrollable failed to send.');
@@ -266,14 +255,8 @@ class Scrollable<Data extends ScrollableDataType> {
 
 		this.#_current_content_cache = undefined;
 		const current_content = await this.#_getContent();
-		const components = this.#_renderComponents(current_content.components);
 
-		await _try_prom(
-			this.#_int.editReply({
-				components,
-				...this.#_getPayload(current_content, true),
-			}),
-		);
+		await _try_prom(this.#_int.editReply(this.#_getPayload(current_content, true)));
 
 		if (bint) await bint.deferUpdate();
 	}

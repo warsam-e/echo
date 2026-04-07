@@ -1,5 +1,6 @@
 import chalk, { type ChalkInstance } from 'chalk';
 import {
+	type ChatInputCommandInteraction,
 	Client,
 	type ClientOptions,
 	Collection,
@@ -97,6 +98,15 @@ class Echo extends Client {
 		if (owner instanceof User) return new Collection([[owner.id, owner]]);
 		if (owner instanceof Team) return owner.members.mapValues((m) => m.user);
 		throw new Error('Unknown owner type');
+	}
+
+	customId(id: string, int: ChatInputCommandInteraction) {
+		const cmd_names = [int.commandName];
+		const group_name = int.options.getSubcommandGroup(false);
+		const sub_name = int.options.getSubcommand(false);
+		if (group_name) cmd_names.push(group_name);
+		if (sub_name) cmd_names.push(sub_name);
+		return `${cmd_names.join('-')}-${id}`;
 	}
 
 	/** Initializes the bot */

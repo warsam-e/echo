@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Command } from '@index.ts';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Command } from '$index.ts';
 
 export default new Command({
 	name: 'buttons',
@@ -13,13 +13,13 @@ export default new Command({
 				description: 'Test button 1',
 			})
 				.addHandler('button', (_bot, int) => int.reply(int.customId))
-				.addHandler('chat_input', (_bot, int) =>
+				.addHandler('chat_input', (bot, int) =>
 					int.reply({
 						components: [
 							new ActionRowBuilder<ButtonBuilder>().addComponents(
 								new ButtonBuilder()
 									.setLabel('Test')
-									.setCustomId('button1')
+									.setCustomId(bot.customId('button1', int))
 									.setStyle(ButtonStyle.Primary),
 							),
 						],
@@ -31,13 +31,13 @@ export default new Command({
 				description: 'Test button 2',
 			})
 				.addHandler('button', (_bot, int) => int.reply(int.customId))
-				.addHandler('chat_input', (_bot, int) =>
+				.addHandler('chat_input', (bot, int) =>
 					int.reply({
 						components: [
 							new ActionRowBuilder<ButtonBuilder>().addComponents(
 								new ButtonBuilder()
 									.setLabel('Test')
-									.setCustomId('button2')
+									.setCustomId(bot.customId('button2', int))
 									.setStyle(ButtonStyle.Primary),
 							),
 						],
@@ -51,11 +51,14 @@ export default new Command({
 			description: 'Test button 3',
 		})
 			.addHandler('button', (_bot, int) => int.reply(int.customId))
-			.addHandler('chat_input', (_bot, int) =>
+			.addHandler('chat_input', (bot, int) =>
 				int.reply({
 					components: [
 						new ActionRowBuilder<ButtonBuilder>().addComponents(
-							new ButtonBuilder().setLabel('Test 2').setCustomId('button1').setStyle(ButtonStyle.Primary),
+							new ButtonBuilder()
+								.setLabel('Test 2')
+								.setCustomId(bot.customId('button3', int))
+								.setStyle(ButtonStyle.Primary),
 						),
 					],
 					ephemeral: true,

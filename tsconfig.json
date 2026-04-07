@@ -8,7 +8,6 @@
 		"moduleResolution": "Bundler",
 		"resolveJsonModule": true,
 		"target": "ESNext",
-		"downlevelIteration": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"strict": true,
