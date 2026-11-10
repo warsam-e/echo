@@ -71,6 +71,8 @@ class Echo extends Client {
 	echoVersion = pkg.version;
 	/** The formatter configured in {@link EchoOptions.formatError}. */
 	readonly formatError: EchoOptions['formatError'];
+	#commandDefinitions = new Map<Command<this>, CommandScope>();
+	#initializationStarted = false;
 
 	constructor(opts: EchoOptions) {
 		if (opts.client_options) {
@@ -125,25 +127,26 @@ class Echo extends Client {
 	 * Adds commands to the list that Echo syncs to each server at startup and on guild join.
 	 * @param cmds The top-level commands to publish separately in each server.
 	 * @returns This Echo client for chaining.
-	 * @throws If a command requires User Install or a context outside a server.
 	 */
 	registerGuild(cmds: Command<this>[]): this {
-		for (const cmd of cmds) {
-			if (
-				cmd.integration_types.includes(ApplicationIntegrationType.UserInstall) ||
-				cmd.contexts.some((context) => context !== InteractionContextType.Guild)
-			) {
-				throw new Error(
-					`Use registerGlobal() for ${cmd.name.default} to enable User Install or private contexts.`,
-				);
-			}
-		}
 		return this.#registerCommands('guild', cmds);
 	}
 
 	#registerCommands(scope: CommandScope, cmds: Command<this>[]): this {
-		const routes = new Map(this.commands);
-		const registered = new Set(routes.values());
+		if (this.#initializationStarted) throw new Error('Register commands before calling init().');
+		for (const command of cmds) {
+			const existingScope = this.#commandDefinitions.get(command);
+			if (existingScope && existingScope !== scope) {
+				throw new Error(`Command ${command.name.default} is already registered in ${existingScope} scope.`);
+			}
+		}
+		for (const command of cmds) this.#commandDefinitions.set(command, scope);
+		return this;
+	}
+
+	#buildCommandRoutes() {
+		const routes = new Map<string, Command<this>>();
+		const registered = new Set<Command<this>>();
 		const add = (route: string, command: Command<this>) => {
 			if (routes.get(route) === command) return;
 			if (routes.has(route)) throw new Error(`Duplicate command route: ${route}`);
@@ -153,7 +156,16 @@ class Echo extends Client {
 			registered.add(command);
 		};
 
-		for (const cmd of cmds) {
+		for (const [cmd, scope] of this.#commandDefinitions) {
+			if (
+				scope === 'guild' &&
+				(cmd.integration_types.includes(ApplicationIntegrationType.UserInstall) ||
+					cmd.contexts.some((context) => context !== InteractionContextType.Guild))
+			) {
+				throw new Error(
+					`Use registerGlobal() for ${cmd.name.default} to enable User Install or private contexts.`,
+				);
+			}
 			const name = cmd.name.default;
 			add(commandRoute(scope, cmd.type, [name]), cmd);
 			for (const { command, group } of cmd.subcommands) {
@@ -162,7 +174,7 @@ class Echo extends Client {
 			}
 		}
 		this.commands = routes;
-		return this;
+		this.#commandDefinitions.clear();
 	}
 
 	/** @returns the bot's color, as a chalk instance */
@@ -184,6 +196,7 @@ class Echo extends Client {
 	 * @param target A registered command or subcommand instance, or an interaction with a registered route.
 	 * @param action An identifier for the control within that command.
 	 * @returns A custom ID to pass to `setCustomId()`.
+	 * Command routes become available when {@link init} starts.
 	 * @throws If the target has no registered route or the ID exceeds Discord's 100-character limit.
 	 */
 	id(
@@ -211,7 +224,10 @@ class Echo extends Client {
 	 * @param token The Discord bot token.
 	 */
 	async init(token: string): Promise<this> {
+		if (this.#initializationStarted) throw new Error('Echo init() can only be called once.');
+		this.#initializationStarted = true;
 		if (typeof token !== 'string' || !token.trim()) throw new Error('A Discord bot token is required.');
+		this.#buildCommandRoutes();
 		_echo_log({ title: 'init', bot: this }, `Initializing ${this.botChalk(this.name)}`);
 		await super.login(token);
 		await this.application?.fetch();
