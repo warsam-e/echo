@@ -116,11 +116,15 @@ class Scrollable<Data extends ScrollableDataType> {
 		try {
 			const page = await renderPage(options, await options.data(), 0);
 			session = new Scrollable(options, page);
-			message = await int.editReply(pagePayload({ ...page.content, components: session.#components(page, false) }));
+			message = await int.editReply(
+				pagePayload({ ...page.content, components: session.#components(page, false) }),
+			);
 		} catch (error) {
 			console.error(error);
 			await int.editReply(
-				pagePayload(options.fail_msg ?? { components: [new TextDisplayBuilder().setContent('Failed to get data.')] }),
+				pagePayload(
+					options.fail_msg ?? { components: [new TextDisplayBuilder().setContent('Failed to get data.')] },
+				),
 			);
 			return;
 		}
@@ -140,7 +144,11 @@ class Scrollable<Data extends ScrollableDataType> {
 				.setLabel('→')
 				.setStyle(ButtonStyle.Secondary)
 				.setDisabled(disabled || index === data.length - 1),
-			new ButtonBuilder().setCustomId(reloadId).setLabel('↻').setStyle(ButtonStyle.Secondary).setDisabled(disabled),
+			new ButtonBuilder()
+				.setCustomId(reloadId)
+				.setLabel('↻')
+				.setStyle(ButtonStyle.Secondary)
+				.setDisabled(disabled),
 		);
 		if (this.#options.show_page_count) {
 			controls.addComponents(
@@ -185,7 +193,8 @@ class Scrollable<Data extends ScrollableDataType> {
 				return false;
 			},
 		);
-		if (this.#closed || (this.#options.controllable !== 'all' && click.user.id !== this.#options.int.user.id)) return;
+		if (this.#closed || (this.#options.controllable !== 'all' && click.user.id !== this.#options.int.user.id))
+			return;
 
 		this.#pending++;
 		this.#queue = this.#queue.then(() => this.#handleClick(click.customId, acknowledged)).catch(console.error);

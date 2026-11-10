@@ -57,7 +57,7 @@ export default new Command({
 						new ActionRowBuilder<ButtonBuilder>().addComponents(
 							new ButtonBuilder()
 								.setLabel('Test 2')
-									.setCustomId(bot.id(int, 'button3'))
+								.setCustomId(bot.id(int, 'button3'))
 								.setStyle(ButtonStyle.Primary),
 						),
 					],

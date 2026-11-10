@@ -36,7 +36,11 @@ function globalCommands<Inst extends Echo>(bot: Inst, application: ClientApplica
 }
 
 function guildCommands<Inst extends Echo>(bot: Inst): CommandInfoExport[] {
-	return rootCommands(bot, 'guild').map((command) => ({ ...command, integrationTypes: undefined, contexts: undefined }));
+	return rootCommands(bot, 'guild').map((command) => ({
+		...command,
+		integrationTypes: undefined,
+		contexts: undefined,
+	}));
 }
 
 function matchesSettings<T>(desired: readonly T[] | undefined, current: readonly T[] | null): boolean {

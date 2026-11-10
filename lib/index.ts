@@ -136,7 +136,9 @@ class Echo extends Client {
 				cmd.integration_types.includes(ApplicationIntegrationType.UserInstall) ||
 				cmd.contexts.some((context) => context !== InteractionContextType.Guild)
 			) {
-				throw new Error(`Use registerGlobal() for ${cmd.name.default} to enable User Install or private contexts.`);
+				throw new Error(
+					`Use registerGlobal() for ${cmd.name.default} to enable User Install or private contexts.`,
+				);
 			}
 		}
 		return this.#registerCommands('guild', cmds);
@@ -148,7 +150,8 @@ class Echo extends Client {
 		const add = (route: string, command: Command<this>) => {
 			if (routes.get(route) === command) return;
 			if (routes.has(route)) throw new Error(`Duplicate command route: ${route}`);
-			if (registered.has(command)) throw new Error(`Command instance is already registered at another route: ${route}`);
+			if (registered.has(command))
+				throw new Error(`Command instance is already registered at another route: ${route}`);
 			routes.set(route, command);
 			registered.add(command);
 		};

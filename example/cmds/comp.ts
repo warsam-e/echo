@@ -16,9 +16,7 @@ export default new Command({
 			)
 			.addActionRowComponents((r) =>
 				r.addComponents(
-					new UserSelectMenuBuilder()
-						.setCustomId(bot.id(int, 'select'))
-						.setPlaceholder('Select a user!'),
+					new UserSelectMenuBuilder().setCustomId(bot.id(int, 'select')).setPlaceholder('Select a user!'),
 				),
 			)
 			.addSeparatorComponents((s) => s)
