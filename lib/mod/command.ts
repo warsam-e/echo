@@ -4,12 +4,12 @@ import {
 	ApplicationCommandOptionType,
 	type ApplicationCommandSubCommandData,
 	ApplicationCommandType,
-	ApplicationIntegrationType,
+	type ApplicationIntegrationType,
 	type AutocompleteInteraction,
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
 	type Interaction,
-	InteractionContextType,
+	type InteractionContextType,
 	type InteractionResponse,
 	type Message,
 	type MessageContextMenuCommandInteraction,
@@ -127,11 +127,11 @@ export interface CommandSubGroup<T = Command> {
 export class Command<Inst = Echo> {
 	name: Locales;
 	description: Locales;
-	type: CommandInfo['type'];
+	type: NonNullable<CommandInfo['type']>;
 	integration_types: ApplicationIntegrationType[];
 	contexts: InteractionContextType[];
 	options: ApplicationCommandOptionData[] = [];
-	subcommands: Command<Inst>[] = [];
+	subcommands: { command: Command<Inst>; group?: string }[] = [];
 	#_handlers: CommandHandler<Inst, keyof CommandInteractionHandlers<Inst>> = {};
 	checkPermission: CommandHasPermission<Inst>;
 	ownersOnly: boolean;
@@ -147,7 +147,7 @@ export class Command<Inst = Echo> {
 				info.description instanceof Locales ? info.description : set_locales({ default: info.description });
 			this.options = info.options ?? [];
 		} else {
-			this.description = set_locales({ default: '' });
+			this.description = new Locales([['default', '']]);
 		}
 		this.integration_types = info.integration_types ?? [];
 		this.contexts = info.contexts ?? [];
@@ -157,72 +157,45 @@ export class Command<Inst = Echo> {
 
 	#_numSort = (a: number, b: number) => a - b;
 
-	get global(): boolean {
-		if (this.integration_types.includes(ApplicationIntegrationType.UserInstall)) return true;
-		if (this.contexts.includes(InteractionContextType.BotDM)) return true;
-		if (this.contexts.includes(InteractionContextType.PrivateChannel)) return true;
-		return false;
-	}
-
 	addSubCommandGroup(group: CommandSubGroup<Command<Inst>>): this {
-		const opts: Partial<ApplicationCommandOptionData> = {
+		const name = group.name instanceof Locales ? group.name : set_locales({ default: group.name });
+		const description =
+			group.description instanceof Locales ? group.description : set_locales({ default: group.description });
+		this.options.push({
 			type: ApplicationCommandOptionType.SubcommandGroup,
-			options: group.commands.map((c) => {
-				const opts: Partial<ApplicationCommandSubCommandData> = {
-					type: ApplicationCommandOptionType.Subcommand,
-				};
-				opts.name = c.name.get('default');
-				if (c.description instanceof Locales) {
-					opts.description = c.description.get('default');
-					if (c.description.size > 1) opts.descriptionLocalizations = c.description.toJSON();
-				}
-				if (c.name.size > 1) opts.nameLocalizations = c.name.toJSON();
-				if (c.options.length > 0) opts.options = c.options as ApplicationCommandSubCommandData['options'];
-				return opts as ApplicationCommandSubCommandData;
-			}),
-		};
-		if (group.name instanceof Locales) {
-			opts.name = group.name.get('default');
-			if (group.name.size > 1) opts.nameLocalizations = group.name.toJSON();
-		} else opts.name = group.name;
-
-		if (group.description instanceof Locales) {
-			opts.description = group.description.get('default');
-			if (group.description.size > 1) opts.descriptionLocalizations = group.description.toJSON();
-		} else opts.description = group.description;
-
-		this.options.push(opts as ApplicationCommandOptionData);
-
-		for (const cmd of group.commands) {
-			cmd.name.set('default', `${group.name} ${cmd.name.get('default')}`);
-			this.subcommands.push(cmd);
-		}
-
+			name: name.default,
+			nameLocalizations: name.size > 1 ? name.toJSON() : undefined,
+			description: description.default,
+			descriptionLocalizations: description.size > 1 ? description.toJSON() : undefined,
+			options: group.commands.map((command) => command.#_subcommandOption()),
+		});
+		this.subcommands.push(...group.commands.map((command) => ({ command, group: name.default })));
 		return this;
 	}
 
 	addSubCommands(cmds: Command<Inst>[]): this {
-		this.subcommands.push(...cmds);
-		for (const cmd of cmds) {
-			const opts: Partial<ApplicationCommandOptionData> = {
-				type: ApplicationCommandOptionType.Subcommand,
-			};
-			if (cmd.options.length > 0) opts.options = cmd.options as ApplicationCommandSubCommandData['options'];
-			opts.name = cmd.name.get('default');
-			opts.description = cmd.description.get('default');
-			if (cmd.name.size > 1) opts.nameLocalizations = cmd.name.toJSON();
-			if (cmd.description.size > 1) opts.descriptionLocalizations = cmd.description.toJSON();
-			this.options.push(opts as ApplicationCommandOptionData);
-		}
+		this.options.push(...cmds.map((command) => command.#_subcommandOption()));
+		this.subcommands.push(...cmds.map((command) => ({ command })));
 		return this;
+	}
+
+	#_subcommandOption(): ApplicationCommandSubCommandData {
+		return {
+			type: ApplicationCommandOptionType.Subcommand,
+			name: this.name.default,
+			nameLocalizations: this.name.size > 1 ? this.name.toJSON() : undefined,
+			description: this.description.default,
+			descriptionLocalizations: this.description.size > 1 ? this.description.toJSON() : undefined,
+			options: this.options.length ? (this.options as ApplicationCommandSubCommandData['options']) : undefined,
+		};
 	}
 
 	commandInfo(): CommandInfoExport {
 		const res: Partial<CommandInfoExport> = {
 			type: this.type,
 		};
-		res.name = this.name.get('default');
-		res.description = this.description.get('default');
+		res.name = this.name.default;
+		res.description = this.description.default;
 		if (this.description.size > 1) res.descriptionLocalizations = this.description.toJSON();
 		if (this.name.size > 1) res.nameLocalizations = this.name.toJSON();
 		if (this.description && this.description.size > 1) res.descriptionLocalizations = this.description.toJSON();

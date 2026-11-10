@@ -1,17 +1,20 @@
 import chalk, { type ChalkInstance } from 'chalk';
 import {
+	ApplicationIntegrationType,
 	type ChatInputCommandInteraction,
 	Client,
 	type ClientOptions,
 	Collection,
 	type ColorResolvable,
 	GatewayIntentBits,
+	InteractionContextType,
 	resolveColor,
 	type Snowflake,
 	Team,
 	User,
 } from 'discord.js';
 import { config } from 'dotenv';
+import { type CommandScope, commandRoute } from '$mod/command_route.ts';
 import { type Command, InteractionHandler } from '$mod/index.ts';
 import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
@@ -37,7 +40,7 @@ class Echo extends Client {
 	color: ColorResolvable;
 	/** handler for interactions */
 	handler: InteractionHandler | undefined;
-	commands: Collection<string, Command<this>>;
+	commands = new Map<string, Command<this>>();
 	echoVersion = pkg.version;
 
 	constructor(opts: EchoOptions) {
@@ -48,7 +51,6 @@ class Echo extends Client {
 		}
 		this.name = opts.name;
 		this.color = opts.color;
-		this.commands = new Collection<string, Command<this>>();
 	}
 
 	/** @returns whether the bot is sharding */
@@ -79,10 +81,42 @@ class Echo extends Client {
 		return members.reduce((acc, m) => acc + (m ?? 0), 0);
 	}
 
-	registerCommands(cmds: Command<this>[]): this {
+	registerGlobal(cmds: Command<this>[]): this {
+		return this.#registerCommands('global', cmds);
+	}
+
+	registerGuild(cmds: Command<this>[]): this {
 		for (const cmd of cmds) {
-			this.commands.set(cmd.name.default, cmd);
+			if (
+				cmd.integration_types.includes(ApplicationIntegrationType.UserInstall) ||
+				cmd.contexts.some((context) => context !== InteractionContextType.Guild)
+			) {
+				throw new Error(`Use registerGlobal() for ${cmd.name.default} to enable User Install or private contexts.`);
+			}
 		}
+		return this.#registerCommands('guild', cmds);
+	}
+
+	#registerCommands(scope: CommandScope, cmds: Command<this>[]): this {
+		const routes = new Map(this.commands);
+		const registered = new Set(routes.values());
+		const add = (route: string, command: Command<this>) => {
+			if (routes.get(route) === command) return;
+			if (routes.has(route)) throw new Error(`Duplicate command route: ${route}`);
+			if (registered.has(command)) throw new Error(`Command instance is already registered at another route: ${route}`);
+			routes.set(route, command);
+			registered.add(command);
+		};
+
+		for (const cmd of cmds) {
+			const name = cmd.name.default;
+			add(commandRoute(scope, cmd.type, [name]), cmd);
+			for (const { command, group } of cmd.subcommands) {
+				const path = group === undefined ? [name, command.name.default] : [name, group, command.name.default];
+				add(commandRoute(scope, cmd.type, path), command);
+			}
+		}
+		this.commands = routes;
 		return this;
 	}
 

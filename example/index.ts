@@ -5,7 +5,7 @@ const bot = await new Echo({
 	name: 'Echo Test',
 	color: 'LuminousVividPink',
 })
-	.registerCommands(cmds)
+	.registerGuild(cmds)
 	.init();
 
 const [guilds, users] = await Promise.all([bot.guildCount(), bot.memberCount()]);

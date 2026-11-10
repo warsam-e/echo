@@ -25,7 +25,10 @@ export class Locales extends Map<DiscordLocale | 'default', string> {
  * Create a new Locales instance from a partial locales object.
  * @param locales The locales object to create the instance from.
  */
-export function set_locales(locales: LocalesPartial): Locales {
+export function set_locales(locales: LocalesPartial & { default: string }): Locales {
+	if (typeof locales.default !== 'string' || !locales.default.trim()) {
+		throw new Error('Locales require a non-empty default value.');
+	}
 	return new Locales(
 		Object.entries(locales).map(([key, value]) => [key as DiscordLocale | 'default', value] as const),
 	);

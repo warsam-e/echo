@@ -1,7 +1,8 @@
 import { inspect } from 'node:util';
-import { type Interaction, InteractionType } from 'discord.js';
+import { ApplicationCommandType, type Interaction, InteractionType } from 'discord.js';
 import type { Echo } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
+import { type CommandScope, commandRoute } from './command_route.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';
 
 /**
@@ -75,82 +76,48 @@ export class InteractionHandler {
 		}
 	}
 
-	#_findCommand(cmd_name: string): Command<Echo> | null {
-		const cmd = this.#_inst.commands.get(cmd_name);
-		if (!cmd) {
-			return null;
-		}
-		return cmd;
-	}
-
 	/**
 	 * Resolve the command (and sub commands) used in the interaction, if available.
 	 * @throws {Error} Command not found.
 	 */
 	resolveCommand(int: Interaction): Command[] {
-		const cmds: Command[] = [];
-		if (
-			int.isCommand() ||
-			int.type === InteractionType.ApplicationCommandAutocomplete ||
-			int.isContextMenuCommand()
-		) {
-			const main = this.#_findCommand(int.commandName);
-			if (!main) throw new Error('Command not found.');
-
-			cmds.push(main);
-			if (int.isChatInputCommand() || int.type === InteractionType.ApplicationCommandAutocomplete) {
-				try {
-					const group = int.options.getSubcommandGroup();
-					const sub = int.options.getSubcommand();
-					let cmd: Command | undefined;
-					if (group) {
-						const group_cmds = main.subcommands.filter((c) => c.name.default.startsWith(group));
-						if (!group_cmds.length) throw 404;
-						cmd = group_cmds.find((c) => c.name.default === `${group} ${sub}`);
-						if (!cmd) throw 404;
-					} else if (sub) {
-						cmd = main.subcommands.find((c) => c.name.default === sub);
-						if (!cmd) throw 404;
-					}
-					if (!cmd) throw 404;
-					cmds.push(cmd);
-				} catch {}
-			}
+		if (int.isMessageComponent() || int.isModalSubmit()) {
+			return this.#_resolveComponent(int.customId, int.guildId !== null);
 		}
-		if (int.isMessageComponent()) {
-			// const msg_int = int;
+		if (!int.isCommand() && !int.isAutocomplete()) return [];
 
-			// if (int.isButton()) cmds.push(...this.#_resolveCommandPath(int.customId));
-			// if(int.isAnySelectMenu())
-			cmds.push(...this.#_resolveCommandPath(int.customId));
+		const scope = int.commandGuildId ? 'guild' : 'global';
+		const type = int.commandType;
+		const path = [int.commandName];
+		if (int.isChatInputCommand() || int.isAutocomplete()) {
+			const group = int.options.getSubcommandGroup(false);
+			const subcommand = int.options.getSubcommand(false);
+			if (group) path.push(group);
+			if (subcommand) path.push(subcommand);
 		}
-
-		if (int.isModalSubmit()) {
-			cmds.push(...this.#_resolveCommandPath(int.customId));
-		}
-		return cmds;
+		return this.#_resolveRoute(scope, type, path);
 	}
 
-	#_resolveCommandPath(custom_id: string): Command[] {
-		const cmds: Command[] = [];
-		if (!custom_id.includes('-')) return cmds;
-		const split = custom_id.split('-');
-		split.splice(split.length - 1, 1);
-		const [cmdname, ...rest] = split;
-
-		const cmd = this.#_findCommand(cmdname);
-		if (!cmd) {
-			throw new Error(`command with name ${cmdname} not found for custom id ${custom_id}`);
+	#_resolveComponent(customId: string, inGuild: boolean): Command[] {
+		if (!customId.includes('-')) return [];
+		const path = customId.split('-').slice(0, -1);
+		const type = ApplicationCommandType.ChatInput;
+		const guildRoute = commandRoute('guild', type, [path[0]]);
+		if (!inGuild || !this.#_inst.commands.has(guildRoute)) return this.#_resolveRoute('global', type, path);
+		if (this.#_inst.commands.has(commandRoute('global', type, [path[0]]))) {
+			throw new Error('Component command route is ambiguous.');
 		}
-		cmds.push(cmd);
-		if (rest.length > 0) {
-			const subcmd = cmd.subcommands.find((c) => c.name.get('default') === rest.join(' '));
-			if (subcmd) {
-				cmds.push(subcmd);
-			}
-		}
+		return this.#_resolveRoute('guild', type, path);
+	}
 
-		return cmds;
+	#_resolveRoute(scope: CommandScope, type: ApplicationCommandType, path: string[]): Command[] {
+		const root = this.#_inst.commands.get(commandRoute(scope, type, [path[0]]));
+		if (!root) throw new Error('Command not found.');
+		if (path.length === 1) return [root];
+
+		const child = this.#_inst.commands.get(commandRoute(scope, type, path));
+		if (!child) throw new Error('Subcommand not found.');
+		return [root, child];
 	}
 
 	async #_asyncBool(promise: Promise<boolean>): Promise<boolean> {

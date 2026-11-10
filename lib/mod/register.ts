@@ -1,6 +1,7 @@
-import type { ApplicationCommand, Collection, Guild } from 'discord.js';
+import { type ApplicationCommand, Collection, type Guild } from 'discord.js';
 import type { Echo } from '$index.ts';
 import type { Command, CommandInfoExport } from './command.ts';
+import { commandRoute } from './command_route.ts';
 import { _echo_log } from './logging.ts';
 
 async function _register_global_command<Inst extends Echo>(bot: Inst, cmds: Collection<string, Command<Inst>>) {
@@ -50,13 +51,13 @@ async function _register_global<Inst extends Echo>(bot: Inst, cmds: Collection<s
 		withLocalizations: true,
 	});
 
-	const removing = [...cmds_manager.cache.filter((c) => !cmds.has(c.name)).values()];
+	const removing = [...cmds_manager.cache.filter((c) => !cmds.has(commandRoute('global', c.type, [c.name]))).values()];
 	const adding: Array<Command<Inst>> = [];
 	const updating: Array<[Command<Inst>, ApplicationCommand]> = [];
 
 	for (const cmd of cmds.values()) {
 		const local_cmd = cmd.commandInfo();
-		const find = cmds_manager.cache.find((c) => c.name === cmd.name.default);
+		const find = cmds_manager.cache.find((c) => c.type === cmd.type && c.name === cmd.name.default);
 		if (!find) adding.push(cmd);
 		else {
 			const should_update = !_similar_cmd(find, local_cmd);
@@ -114,13 +115,13 @@ async function _register_guild<Inst extends Echo>(bot: Inst, guild: Guild, cmds:
 		withLocalizations: true,
 	});
 
-	const removing = [...cmds_manager.cache.filter((c) => !cmds.has(c.name)).values()];
+	const removing = [...cmds_manager.cache.filter((c) => !cmds.has(commandRoute('guild', c.type, [c.name]))).values()];
 	const adding: Array<Command<Inst>> = [];
 	const updating: Array<[Command<Inst>, ApplicationCommand]> = [];
 
 	for (const cmd of cmds.values()) {
 		const local_cmd = cmd.commandInfo();
-		const find = cmds_manager.cache.find((c) => c.name === cmd.name.default);
+		const find = cmds_manager.cache.find((c) => c.type === cmd.type && c.name === cmd.name.default);
 		if (!find) adding.push(cmd);
 		else {
 			const should_update = !find.equals(local_cmd);
@@ -176,15 +177,17 @@ async function _register_guild<Inst extends Echo>(bot: Inst, guild: Guild, cmds:
 	}
 }
 
-/**
- * register commands. Don't call this function directly, Echo will call this function for you on startup as long as the commands are defined with .registerCommands()
- * @internal
- */
 export async function _register_cmds<Inst extends Echo>(bot: Inst) {
 	if (!bot.application) throw new Error('Application is not defined');
 
-	const local_global_commands = bot.commands.filter((c) => c.global);
-	const local_guild_commands = bot.commands.filter((c) => !c.global);
+	const local_global_commands = new Collection<string, Command<Inst>>();
+	const local_guild_commands = new Collection<string, Command<Inst>>();
+	for (const [route, command] of bot.commands) {
+		const [scope, , , subcommand] = route.split('/');
+		if (subcommand !== undefined) continue;
+		const commands = scope === 'global' ? local_global_commands : local_guild_commands;
+		commands.set(route, command);
+	}
 
 	if (!local_global_commands.size && !local_guild_commands.size)
 		return _echo_log({ title: 'cmds', bot }, 'No commands to register');
