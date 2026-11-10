@@ -42,7 +42,7 @@ export interface ScrollableData<Data extends ScrollableDataType> {
 	int: RepliableInteraction;
 	/**
 	 * Show the page count on the buttons row
-	 * @default false
+	 * @default true
 	 */
 	show_page_count?: boolean;
 	/**
@@ -150,7 +150,7 @@ class Scrollable<Data extends ScrollableDataType> {
 				.setStyle(ButtonStyle.Secondary)
 				.setDisabled(disabled),
 		);
-		if (this.#options.show_page_count) {
+		if (this.#options.show_page_count !== false) {
 			controls.addComponents(
 				new ButtonBuilder()
 					.setCustomId('scrollable_page_count')
