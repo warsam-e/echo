@@ -26,6 +26,7 @@
 		"docs": "python3 -m http.server --directory docs"
 	},
 	"devDependencies": {
+		"@arkenv/core": "1.0.0-rc.4",
 		"@biomejs/biome": "2.6.6",
 		"@types/bun": "1.4.4",
 		"typedoc-github-theme": "0.4.0",

@@ -1,9 +1,5 @@
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { EchoSharding } from '$index.ts';
+import { env } from './env.ts';
 
-const token = Bun.env.TOKEN;
-if (!token) throw new Error('Set TOKEN to your Discord bot token.');
-
-const current_file = import.meta.url.replace('file://', '');
-
-EchoSharding.init(join(current_file, '../index.ts'), token);
+await EchoSharding.init(fileURLToPath(new URL('./index.ts', import.meta.url)), env.BOT_TOKEN);

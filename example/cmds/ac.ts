@@ -14,12 +14,16 @@ export default new Command({
 	],
 })
 	.addHandler('autocomplete', (_bot, int) => {
-		const str = int.options.getString('query', true);
+		const query = int.options.getFocused();
 		return int.respond(
-			str.split('').map((c) => ({
-				name: `${c.toUpperCase()} - ${c}`,
-				value: c,
-			})),
+			Array.from(query)
+				.slice(0, 25)
+				.map((character) => ({
+					name: `${character.toUpperCase()} - ${character}`,
+					value: character,
+				})),
 		);
 	})
-	.addHandler('chat_input', (_bot, int) => int.reply(int.options.getString('query', true)));
+	.addHandler('chat_input', (_bot, int) =>
+		int.reply({ content: int.options.getString('query', true), allowedMentions: { parse: [] } }),
+	);

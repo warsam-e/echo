@@ -10,29 +10,33 @@ import {
 	Command,
 	type CommandInfo,
 	type Echo,
+	set_locales,
 } from '$index.ts';
 
-const handle_autocomplete = (_bot: Echo, int: AutocompleteInteraction) =>
-	int.respond([
-		{
-			name: 'bar',
-			value: 'bar',
-		},
-		{
-			name: 'bar2',
-			value: 'bar2',
-		},
-		{
-			name: 'bar3',
-			value: 'bar3',
-		},
-	]);
+const choices = ['bar', 'bar2', 'bar3'];
 
-const handle_button = (_bot: Echo, int: ButtonInteraction) => int.reply(int.customId);
+const handle_autocomplete = (_bot: Echo, int: AutocompleteInteraction) =>
+	int.respond(choices.map((value) => ({ name: value, value })));
+
+const handle_button = (bot: Echo, int: ButtonInteraction) => {
+	switch (int.customId) {
+		case bot.id(int, 'bar'):
+			return int.reply('You picked the original bar.');
+		case bot.id(int, 'bar2'):
+			return int.reply('You picked the second bar.');
+		case bot.id(int, 'bar3'):
+			return int.reply('You picked the third bar.');
+		default:
+			return int.deferUpdate();
+	}
+};
 
 const handle_chat = (bot: Echo, int: ChatInputCommandInteraction) => {
+	const choice = int.options.getString('foo', true);
+	if (!choices.includes(choice)) return int.reply('Choose bar, bar2, or bar3.');
+
 	const row = new ActionRowBuilder<ButtonBuilder>().addComponents([
-		new ButtonBuilder().setLabel('blah').setCustomId(bot.id(int, 'ah')).setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setLabel(`Show ${choice}`).setCustomId(bot.id(int, choice)).setStyle(ButtonStyle.Primary),
 	]);
 	return int.reply({
 		components: [row],
@@ -45,7 +49,7 @@ const command_info: CommandInfo = {
 	options: [
 		{
 			name: 'foo',
-			description: 'random shit',
+			description: 'Choose what the button will show',
 			required: true,
 			type: ApplicationCommandOptionType.String,
 			autocomplete: true,
@@ -59,8 +63,8 @@ export default new Command({
 	type: ApplicationCommandType.ChatInput,
 })
 	.addSubCommandGroup({
-		name: 'group1',
-		description: 'a group',
+		name: set_locales({ default: 'group1', ja: 'グループ1' }),
+		description: set_locales({ default: 'a group', ja: 'サブコマンドのグループ' }),
 		commands: [
 			new Command(command_info)
 				.addHandler('autocomplete', handle_autocomplete)
