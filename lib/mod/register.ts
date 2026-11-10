@@ -87,7 +87,6 @@ export async function _register_cmds<Inst extends Echo>(bot: Inst) {
 	const application = bot.application;
 	if (!application) throw new Error('Application is not defined');
 
-	const globals = globalCommands(bot, application);
 	const guilds = guildCommands(bot);
 	const guildSyncs = new Map<Snowflake, Promise<void>>();
 	const syncGuild = (guild: Guild, commands: CommandInfoExport[]) => {
@@ -105,8 +104,9 @@ export async function _register_cmds<Inst extends Echo>(bot: Inst) {
 			console.error(`Failed to sync commands for guild ${guild.id}`, error);
 		}
 	});
-	await Promise.all([
-		syncCommands(bot, application.commands, globals, 'global'),
-		...bot.guilds.cache.map((guild) => syncGuild(guild, guilds)),
-	]);
+	const pendingSyncs = bot.guilds.cache.map((guild) => syncGuild(guild, guilds));
+	if (!bot.shard || bot.shard.ids.includes(0)) {
+		pendingSyncs.push(syncCommands(bot, application.commands, globalCommands(bot, application), 'global'));
+	}
+	await Promise.all(pendingSyncs);
 }
