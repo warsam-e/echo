@@ -125,6 +125,8 @@ class Echo extends Client {
 
 	/**
 	 * Adds commands to the list that Echo syncs to each server at startup and on guild join.
+	 * During {@link init}, Echo rejects guild commands that require User Install or a context outside a server.
+	 * Register those commands with {@link registerGlobal}.
 	 * @param cmds The top-level commands to publish separately in each server.
 	 * @returns This Echo client for chaining.
 	 */
@@ -222,6 +224,7 @@ class Echo extends Client {
 	/**
 	 * Connects to Discord and syncs the bot's commands.
 	 * @param token The Discord bot token.
+	 * @throws If a guild command requires User Install or a context outside a server.
 	 */
 	async init(token: string): Promise<this> {
 		if (this.#initializationStarted) throw new Error('Echo init() can only be called once.');
