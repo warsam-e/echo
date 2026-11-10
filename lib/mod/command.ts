@@ -16,6 +16,7 @@ import {
 	type Message,
 	type MessageContextMenuCommandInteraction,
 	type ModalSubmitInteraction,
+	type PermissionResolvable,
 	type UserContextMenuCommandInteraction,
 } from 'discord.js';
 import type { Echo } from '$index.ts';
@@ -59,6 +60,8 @@ export interface CommandInfoBasics {
 	 * @default false
 	 */
 	nsfw?: boolean;
+	/** Default member permissions for the top-level command, shared by all its subcommands. */
+	default_member_permissions?: PermissionResolvable | null;
 	integration_types?: Array<ApplicationIntegrationType>;
 	contexts?: Array<InteractionContextType>;
 }
@@ -131,6 +134,8 @@ export class Command<Inst = Echo> {
 	checkPermission: CommandHasPermission<Inst>;
 	ownersOnly: boolean;
 	nsfw: boolean;
+	/** Default member permissions sent to Discord. Use null to clear the restriction. */
+	default_member_permissions: PermissionResolvable | null;
 
 	constructor(info: CommandInfo) {
 		this.name = info.name instanceof Locales ? info.name : set_locales({ default: info.name });
@@ -148,6 +153,7 @@ export class Command<Inst = Echo> {
 		this.contexts = info.contexts ?? [];
 		this.checkPermission = () => Promise.resolve(true);
 		this.nsfw = info.nsfw ?? false;
+		this.default_member_permissions = info.default_member_permissions ?? null;
 	}
 
 	addSubCommandGroup(group: CommandSubGroup<Command<Inst>>): this {
@@ -188,6 +194,7 @@ export class Command<Inst = Echo> {
 			name: this.name.default,
 			nameLocalizations: this.name.toJSON(),
 			nsfw: this.nsfw,
+			defaultMemberPermissions: this.default_member_permissions,
 			integrationTypes: this.integration_types.length ? this.integration_types : undefined,
 			contexts: this.contexts.length ? this.contexts : undefined,
 		};
