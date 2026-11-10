@@ -19,7 +19,7 @@ export default new Command({
 							new ActionRowBuilder<ButtonBuilder>().addComponents(
 								new ButtonBuilder()
 									.setLabel('Test')
-									.setCustomId(bot.customId('button1', int))
+									.setCustomId(bot.id(int, 'button1'))
 									.setStyle(ButtonStyle.Primary),
 							),
 						],
@@ -37,7 +37,7 @@ export default new Command({
 							new ActionRowBuilder<ButtonBuilder>().addComponents(
 								new ButtonBuilder()
 									.setLabel('Test')
-									.setCustomId(bot.customId('button2', int))
+									.setCustomId(bot.id(int, 'button2'))
 									.setStyle(ButtonStyle.Primary),
 							),
 						],
@@ -57,7 +57,7 @@ export default new Command({
 						new ActionRowBuilder<ButtonBuilder>().addComponents(
 							new ButtonBuilder()
 								.setLabel('Test 2')
-								.setCustomId(bot.customId('button3', int))
+									.setCustomId(bot.id(int, 'button3'))
 								.setStyle(ButtonStyle.Primary),
 						),
 					],

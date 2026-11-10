@@ -32,7 +32,7 @@ const handle_button = (_bot: Echo, int: ButtonInteraction) => int.reply(int.cust
 
 const handle_chat = (bot: Echo, int: ChatInputCommandInteraction) => {
 	const row = new ActionRowBuilder<ButtonBuilder>().addComponents([
-		new ButtonBuilder().setLabel('blah').setCustomId(bot.customId('ah', int)).setStyle(ButtonStyle.Primary),
+		new ButtonBuilder().setLabel('blah').setCustomId(bot.id(int, 'ah')).setStyle(ButtonStyle.Primary),
 	]);
 	return int.reply({
 		components: [row],

@@ -17,7 +17,7 @@ export default new Command({
 			.addActionRowComponents((r) =>
 				r.addComponents(
 					new UserSelectMenuBuilder()
-						.setCustomId(bot.customId('select', int))
+						.setCustomId(bot.id(int, 'select'))
 						.setPlaceholder('Select a user!'),
 				),
 			)
@@ -25,7 +25,7 @@ export default new Command({
 			.addActionRowComponents((r) =>
 				r.addComponents(
 					new ButtonBuilder()
-						.setCustomId(bot.customId('button', int))
+						.setCustomId(bot.id(int, 'button'))
 						.setLabel('Click me!')
 						.setStyle(ButtonStyle.Primary),
 				),

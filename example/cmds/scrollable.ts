@@ -14,7 +14,7 @@ export default new Command({
 	description: 'scrollable content',
 })
 	.addHandler('button', (_bot, int) => int.reply(int.customId))
-	.addHandler('chat_input', async (_bot, int) => {
+	.addHandler('chat_input', async (bot, int) => {
 		await int.reply('loading...');
 
 		const make_data = (index: number) => ({
@@ -51,7 +51,7 @@ export default new Command({
 						),
 						new ActionRowBuilder<ButtonBuilder>().addComponents(
 							new ButtonBuilder()
-								.setCustomId('scrollable-random')
+								.setCustomId(bot.id(int, 'random'))
 								.setLabel('Random')
 								.setStyle(ButtonStyle.Secondary),
 						),

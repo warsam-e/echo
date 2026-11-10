@@ -1,21 +1,30 @@
 import chalk, { type ChalkInstance } from 'chalk';
 import {
 	ApplicationIntegrationType,
-	type ChatInputCommandInteraction,
+	type AutocompleteInteraction,
 	Client,
 	type ClientOptions,
 	Collection,
 	type ColorResolvable,
+	type CommandInteraction,
 	GatewayIntentBits,
 	InteractionContextType,
+	type MessageComponentInteraction,
+	type ModalSubmitInteraction,
 	resolveColor,
 	type Snowflake,
 	Team,
 	User,
 } from 'discord.js';
 import { config } from 'dotenv';
-import { type CommandScope, commandRoute } from '$mod/command_route.ts';
-import { type Command, InteractionHandler } from '$mod/index.ts';
+import {
+	type CommandScope,
+	commandRoute,
+	componentCommandRoute,
+	componentId,
+	interactionCommandRoute,
+} from '$mod/command_route.ts';
+import { Command, InteractionHandler } from '$mod/index.ts';
 import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
 import pkg from '../package.json';
@@ -134,13 +143,24 @@ class Echo extends Client {
 		throw new Error('Unknown owner type');
 	}
 
-	customId(id: string, int: ChatInputCommandInteraction) {
-		const cmd_names = [int.commandName];
-		const group_name = int.options.getSubcommandGroup(false);
-		const sub_name = int.options.getSubcommand(false);
-		if (group_name) cmd_names.push(group_name);
-		if (sub_name) cmd_names.push(sub_name);
-		return `${cmd_names.join('-')}-${id}`;
+	id(
+		target:
+			| Command<this>
+			| CommandInteraction
+			| AutocompleteInteraction
+			| MessageComponentInteraction
+			| ModalSubmitInteraction,
+		action: string,
+	): string {
+		if (target instanceof Command) {
+			for (const [route, command] of this.commands) {
+				if (command === target) return componentId(route, action);
+			}
+			throw new Error(`Command ${target.name.default} is not registered.`);
+		}
+		const route = 'customId' in target ? componentCommandRoute(target.customId) : interactionCommandRoute(target);
+		if (!route || !this.commands.has(route)) throw new Error('Interaction has no registered command route.');
+		return componentId(route, action);
 	}
 
 	/** Initializes the bot */

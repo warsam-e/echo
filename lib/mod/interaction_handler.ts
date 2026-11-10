@@ -1,8 +1,8 @@
 import { inspect } from 'node:util';
-import { ApplicationCommandType, type Interaction, InteractionType } from 'discord.js';
+import { type Interaction, InteractionType } from 'discord.js';
 import type { Echo } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
-import { type CommandScope, commandRoute } from './command_route.ts';
+import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';
 
 /**
@@ -26,6 +26,13 @@ export class InteractionHandler {
 	}
 
 	async #_matchInteraction(interaction: Interaction) {
+		if (
+			(interaction.isMessageComponent() || interaction.isModalSubmit()) &&
+			!componentCommandRoute(interaction.customId)
+		) {
+			return;
+		}
+
 		try {
 			switch (interaction.type) {
 				case InteractionType.ApplicationCommandAutocomplete:
@@ -82,40 +89,20 @@ export class InteractionHandler {
 	 */
 	resolveCommand(int: Interaction): Command[] {
 		if (int.isMessageComponent() || int.isModalSubmit()) {
-			return this.#_resolveComponent(int.customId, int.guildId !== null);
+			const route = componentCommandRoute(int.customId);
+			return route ? this.#_resolveRoute(route) : [];
 		}
 		if (!int.isCommand() && !int.isAutocomplete()) return [];
-
-		const scope = int.commandGuildId ? 'guild' : 'global';
-		const type = int.commandType;
-		const path = [int.commandName];
-		if (int.isChatInputCommand() || int.isAutocomplete()) {
-			const group = int.options.getSubcommandGroup(false);
-			const subcommand = int.options.getSubcommand(false);
-			if (group) path.push(group);
-			if (subcommand) path.push(subcommand);
-		}
-		return this.#_resolveRoute(scope, type, path);
+		return this.#_resolveRoute(interactionCommandRoute(int));
 	}
 
-	#_resolveComponent(customId: string, inGuild: boolean): Command[] {
-		if (!customId.includes('-')) return [];
-		const path = customId.split('-').slice(0, -1);
-		const type = ApplicationCommandType.ChatInput;
-		const guildRoute = commandRoute('guild', type, [path[0]]);
-		if (!inGuild || !this.#_inst.commands.has(guildRoute)) return this.#_resolveRoute('global', type, path);
-		if (this.#_inst.commands.has(commandRoute('global', type, [path[0]]))) {
-			throw new Error('Component command route is ambiguous.');
-		}
-		return this.#_resolveRoute('guild', type, path);
-	}
-
-	#_resolveRoute(scope: CommandScope, type: ApplicationCommandType, path: string[]): Command[] {
-		const root = this.#_inst.commands.get(commandRoute(scope, type, [path[0]]));
+	#_resolveRoute(route: string): Command[] {
+		const rootRoute = route.split('/', 3).join('/');
+		const root = this.#_inst.commands.get(rootRoute);
 		if (!root) throw new Error('Command not found.');
-		if (path.length === 1) return [root];
+		if (route === rootRoute) return [root];
 
-		const child = this.#_inst.commands.get(commandRoute(scope, type, path));
+		const child = this.#_inst.commands.get(route);
 		if (!child) throw new Error('Subcommand not found.');
 		return [root, child];
 	}

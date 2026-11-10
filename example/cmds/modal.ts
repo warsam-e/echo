@@ -22,8 +22,8 @@ export default new Command({
 			name: 'one',
 			description: 'Modal command',
 		})
-			.addHandler('button', async (_bot, int) => {
-				const modal = new ModalBuilder().setCustomId('modal-group-one-modal').setTitle('Modal');
+			.addHandler('button', async (bot, int) => {
+				const modal = new ModalBuilder().setCustomId(bot.id(int, 'modal')).setTitle('Modal');
 
 				modal.addLabelComponents(
 					new LabelBuilder()
@@ -43,14 +43,14 @@ export default new Command({
 					embeds: [embed],
 				});
 			})
-			.addHandler('chat_input', async (_bot, int) => {
+			.addHandler('chat_input', async (bot, int) => {
 				await int.deferReply();
 				if (!int.channel?.isSendable()) return int.editReply('This channel is not sendable.');
 				await int.channel?.send({
 					components: [
 						new ActionRowBuilder<ButtonBuilder>().addComponents(
 							new ButtonBuilder()
-								.setCustomId('modal-group-one-modal')
+								.setCustomId(bot.id(int, 'open-modal'))
 								.setLabel('Open modal')
 								.setStyle(ButtonStyle.Primary),
 						),
