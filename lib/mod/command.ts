@@ -1,5 +1,6 @@
 import {
 	type AnySelectMenuInteraction,
+	type ApplicationCommandData,
 	type ApplicationCommandOptionData,
 	ApplicationCommandOptionType,
 	type ApplicationCommandSubCommandData,
@@ -17,7 +18,7 @@ import {
 	type UserContextMenuCommandInteraction,
 } from 'discord.js';
 import type { Echo } from '$index.ts';
-import { Locales, type LocalesPartial, set_locales } from './locales.ts';
+import { Locales, set_locales } from './locales.ts';
 
 // biome-ignore lint/suspicious/noConfusingVoidType: it's intended
 export type CommandResponse = void | Promise<InteractionResponse | void | Message>;
@@ -98,14 +99,7 @@ export type CommandInfo = CommandInfoChat | CommandInfoMessage | CommandInfoUser
  *
  * @internal
  */
-export type CommandInfoExport = CommandInfo & {
-	name: string;
-	nameLocalizations: LocalesPartial;
-	description: string;
-	descriptionLocalizations: LocalesPartial;
-	nsfw: boolean;
-	contexts: Array<InteractionContextType> | null;
-};
+export type CommandInfoExport = ApplicationCommandData;
 
 /**
  * Typings for A function that checks if a user has permission to run a command.
@@ -155,8 +149,6 @@ export class Command<Inst = Echo> {
 		this.nsfw = info.nsfw ?? false;
 	}
 
-	#_numSort = (a: number, b: number) => a - b;
-
 	addSubCommandGroup(group: CommandSubGroup<Command<Inst>>): this {
 		const name = group.name instanceof Locales ? group.name : set_locales({ default: group.name });
 		const description =
@@ -191,21 +183,21 @@ export class Command<Inst = Echo> {
 	}
 
 	commandInfo(): CommandInfoExport {
-		const res: Partial<CommandInfoExport> = {
-			type: this.type,
+		const info = {
+			name: this.name.default,
+			nameLocalizations: this.name.toJSON(),
+			nsfw: this.nsfw,
+			integrationTypes: this.integration_types.length ? this.integration_types : undefined,
+			contexts: this.contexts.length ? this.contexts : undefined,
 		};
-		res.name = this.name.default;
-		res.description = this.description.default;
-		if (this.description.size > 1) res.descriptionLocalizations = this.description.toJSON();
-		if (this.name.size > 1) res.nameLocalizations = this.name.toJSON();
-		if (this.description && this.description.size > 1) res.descriptionLocalizations = this.description.toJSON();
-		if (res.type === ApplicationCommandType.ChatInput) if (this.options.length > 0) res.options = this.options;
-		if (this.nsfw) res.nsfw = true;
-
-		res.integration_types =
-			this.integration_types.length > 0 ? this.integration_types.sort(this.#_numSort) : undefined;
-		res.contexts = (this.contexts.length > 0 ? this.contexts.sort(this.#_numSort) : null) as typeof res.contexts;
-		return res as CommandInfoExport;
+		if (this.type !== ApplicationCommandType.ChatInput) return { ...info, type: this.type };
+		return {
+			...info,
+			type: this.type,
+			description: this.description.default,
+			descriptionLocalizations: this.description.toJSON(),
+			options: this.options,
+		};
 	}
 
 	addHandler<T extends keyof CommandInteractionHandlers<Inst>>(
