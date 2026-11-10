@@ -1,9 +1,15 @@
 import { inspect } from 'node:util';
-import { type Interaction, InteractionType } from 'discord.js';
-import type { Echo } from '$index.ts';
+import { type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
+import type { Echo, InteractionErrorReply } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';
+
+class PermissionDeniedError extends Error {
+	constructor() {
+		super('You do not have permission to use this command.');
+	}
+}
 
 /**
  * Handler for interactions.
@@ -21,7 +27,9 @@ export class InteractionHandler {
 		this.#_inst.on('interactionCreate', async (interaction) => {
 			try {
 				await this.#_matchInteraction(interaction);
-			} catch {}
+			} catch (error) {
+				console.error(error);
+			}
 		});
 	}
 
@@ -61,26 +69,44 @@ export class InteractionHandler {
 					}
 					break;
 			}
-		} catch (e) {
-			console.error(e);
-			if (interaction.isRepliable()) {
-				const content = e instanceof Error ? e.message : 'An error occured while executing the command.';
-				if (interaction.replied) return interaction.editReply({ content });
-				try {
-					await interaction.reply({ content, ephemeral: true });
-				} catch {
-					await interaction.editReply({ content });
-				}
-			}
+		} catch (error) {
+			await this.#_replyToError(interaction, error);
+			return;
 		}
 
-		if (interaction.isRepliable()) {
-			if (!interaction.replied)
-				console.warn(
-					`Interaction ${interaction.id} was not replied to.`,
-					inspect(interaction, { depth: 0, colors: true }),
-				);
+		if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+			console.warn(
+				`Interaction ${interaction.id} was not acknowledged.`,
+				inspect(interaction, { depth: 0, colors: true }),
+			);
 		}
+	}
+
+	async #_replyToError(interaction: Interaction, error: unknown) {
+		if (!(error instanceof PermissionDeniedError)) console.error(error);
+		if (!interaction.isRepliable() || interaction.replied) return;
+
+		const payload = await this.#_formatError(error);
+		if (interaction.replied) return;
+		if (interaction.deferred && interaction.ephemeral !== null) {
+			await interaction.editReply(payload);
+			return;
+		}
+
+		const reply: InteractionReplyOptions = { ...payload, flags: [MessageFlags.Ephemeral, payload.flags ?? []] };
+		if (interaction.deferred) await interaction.followUp(reply);
+		else await interaction.reply(reply);
+	}
+
+	async #_formatError(error: unknown): Promise<InteractionErrorReply> {
+		if (error instanceof PermissionDeniedError) return { content: error.message };
+		try {
+			const reply = await this.#_inst.formatError?.(error);
+			if (reply) return reply;
+		} catch (formatterError) {
+			console.error(formatterError);
+		}
+		return { content: 'Something went wrong.' };
 	}
 
 	/**
@@ -136,12 +162,12 @@ export class InteractionHandler {
 		if (cmds.length > 0) {
 			const maincmd = cmds[0];
 			if (!(await this.#_cmdPermHandler(maincmd, int))) {
-				throw new Error('You do not have permission to use this command.');
+				throw new PermissionDeniedError();
 			}
 			if (cmds.length > 1) {
 				const subcmd = cmds[1];
 				if (!(await this.#_cmdPermHandler(subcmd, int))) {
-					throw new Error('You do not have permission to use this command.');
+					throw new PermissionDeniedError();
 				}
 				await subcmd.handle(type, this.#_inst, int);
 			}

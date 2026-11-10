@@ -2,6 +2,7 @@ import chalk, { type ChalkInstance } from 'chalk';
 import {
 	ApplicationIntegrationType,
 	type AutocompleteInteraction,
+	type Awaitable,
 	Client,
 	type ClientOptions,
 	Collection,
@@ -9,7 +10,9 @@ import {
 	type CommandInteraction,
 	GatewayIntentBits,
 	InteractionContextType,
+	type InteractionReplyOptions,
 	type MessageComponentInteraction,
+	type MessageFlags,
 	type ModalSubmitInteraction,
 	resolveColor,
 	type Snowflake,
@@ -31,6 +34,17 @@ import pkg from '../package.json';
 
 config({ quiet: true });
 
+type InteractionErrorFlag = MessageFlags.IsComponentsV2 | MessageFlags.SuppressEmbeds;
+
+/** Message content and styling returned by an interaction error formatter. */
+export type InteractionErrorReply = Pick<
+	InteractionReplyOptions,
+	'content' | 'embeds' | 'components' | 'files' | 'allowedMentions'
+> & {
+	/** Enables Components V2 or suppresses embeds in the error reply. */
+	flags?: InteractionErrorFlag | readonly InteractionErrorFlag[];
+};
+
 export interface EchoOptions {
 	name: string;
 	color: ColorResolvable;
@@ -39,6 +53,12 @@ export interface EchoOptions {
 	 * @default { intents: [GatewayIntentBits.Guilds] }
 	 */
 	client_options?: ClientOptions;
+	/**
+	 * Formats an unexpected interaction error for a user who is still waiting for a reply.
+	 * Echo uses “Something went wrong.” if the formatter is absent or throws.
+	 * New error replies are private. A deferred reply keeps its original visibility.
+	 */
+	formatError?: (error: unknown) => Awaitable<InteractionErrorReply>;
 }
 
 /**
@@ -52,6 +72,8 @@ class Echo extends Client {
 	/** Registered commands and subcommands keyed by their internal route. */
 	commands = new Map<string, Command<this>>();
 	echoVersion = pkg.version;
+	/** The formatter configured in {@link EchoOptions.formatError}. */
+	readonly formatError: EchoOptions['formatError'];
 
 	constructor(opts: EchoOptions) {
 		if (opts.client_options) {
@@ -61,6 +83,7 @@ class Echo extends Client {
 		}
 		this.name = opts.name;
 		this.color = opts.color;
+		this.formatError = opts.formatError;
 	}
 
 	/** @returns whether the bot is sharding */
