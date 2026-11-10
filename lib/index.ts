@@ -220,9 +220,9 @@ class Echo extends Client {
 			throw new Error('Client user is not defined');
 		}
 
+		this.handler = new InteractionHandler(this);
 		await _register_cmds(this);
 
-		this.handler = new InteractionHandler(this);
 		_echo_log({ title: 'init', bot: this }, `Logged in as ${this.botChalk(this.user.tag)}!`);
 		return this;
 	}
