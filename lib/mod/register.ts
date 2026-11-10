@@ -74,7 +74,7 @@ async function syncCommands(
 	if (unchanged) return;
 
 	await _echo_log(
-		{ cb: manager.set(desired), title: 'cmds', bot },
+		{ cb: () => manager.set(desired), title: 'cmds', bot },
 		`Syncing ${bot.botChalk(desired.length)} commands for ${bot.botChalk(target)}`,
 	);
 }

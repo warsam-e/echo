@@ -12,16 +12,18 @@ export async function _echo_log(
 		bot,
 	}: {
 		title: string;
-		cb?: Awaitable<StringLike>;
+		cb?: () => Awaitable<unknown>;
 		bot: Echo | null;
 	},
 	...message: StringLike[]
 ) {
-	const _title = bot?.isSharding ? `#${bot.shard?.ids.join(',')}_${title}` : title;
-	if (typeof cb === 'undefined') return console.log(echo_color(`[Echo / ${_title}]`), ...message);
-	console.time(...message.toString());
-	await cb;
-	console.timeEnd(...message.toString());
+	const logTitle = bot?.isSharding ? `#${bot.shard?.ids.join(',')}_${title}` : title;
+	const label = echo_color(`[Echo / ${logTitle}]`);
+	if (!cb) return console.log(label, ...message);
+	const start = performance.now();
+	await cb();
+	const elapsed = performance.now() - start;
+	console.log(label, ...message, `(${elapsed.toFixed(1)} ms)`);
 }
 
 const { green, red } = chalk;
