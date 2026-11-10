@@ -10,6 +10,7 @@ import {
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
 	type Interaction,
+	type InteractionCallbackResponse,
 	type InteractionContextType,
 	type InteractionResponse,
 	type Message,
@@ -21,7 +22,7 @@ import type { Echo } from '$index.ts';
 import { Locales, set_locales } from './locales.ts';
 
 // biome-ignore lint/suspicious/noConfusingVoidType: it's intended
-export type CommandResponse = void | Promise<InteractionResponse | void | Message>;
+export type CommandResponse = void | Promise<InteractionResponse | InteractionCallbackResponse | void | Message>;
 
 export type InteractionHadlerCB<T extends Interaction, Inst = Echo> = (bot: Inst, int: T) => CommandResponse;
 
