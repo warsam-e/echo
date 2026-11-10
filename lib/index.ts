@@ -49,6 +49,7 @@ class Echo extends Client {
 	color: ColorResolvable;
 	/** handler for interactions */
 	handler: InteractionHandler | undefined;
+	/** Registered commands and subcommands keyed by their internal route. */
 	commands = new Map<string, Command<this>>();
 	echoVersion = pkg.version;
 
@@ -90,10 +91,22 @@ class Echo extends Client {
 		return members.reduce((acc, m) => acc + (m ?? 0), 0);
 	}
 
+	/**
+	 * Adds commands to the global list that Echo syncs during {@link init}.
+	 * Commands with no install types configured inherit the app's Discord install settings.
+	 * @param cmds The top-level commands to publish globally.
+	 * @returns This Echo client for chaining.
+	 */
 	registerGlobal(cmds: Command<this>[]): this {
 		return this.#registerCommands('global', cmds);
 	}
 
+	/**
+	 * Adds commands to the list that Echo syncs to each server at startup and on guild join.
+	 * @param cmds The top-level commands to publish separately in each server.
+	 * @returns This Echo client for chaining.
+	 * @throws If a command requires User Install or a context outside a server.
+	 */
 	registerGuild(cmds: Command<this>[]): this {
 		for (const cmd of cmds) {
 			if (
@@ -143,6 +156,13 @@ class Echo extends Client {
 		throw new Error('Unknown owner type');
 	}
 
+	/**
+	 * Creates a custom ID that routes a button, select menu, or modal submission to an Echo command.
+	 * @param target A registered command or subcommand instance, or an interaction with a registered route.
+	 * @param action An identifier for the control within that command.
+	 * @returns A custom ID to pass to `setCustomId()`.
+	 * @throws If the target has no registered route or the ID exceeds Discord's 100-character limit.
+	 */
 	id(
 		target:
 			| Command<this>
