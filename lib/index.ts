@@ -19,7 +19,6 @@ import {
 	Team,
 	User,
 } from 'discord.js';
-import { config } from 'dotenv';
 import {
 	type CommandScope,
 	commandRoute,
@@ -31,8 +30,6 @@ import { Command, InteractionHandler } from '$mod/index.ts';
 import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
 import pkg from '../package.json';
-
-config({ quiet: true });
 
 type InteractionErrorFlag = MessageFlags.IsComponentsV2 | MessageFlags.SuppressEmbeds;
 
@@ -209,11 +206,13 @@ class Echo extends Client {
 		return componentId(route, action);
 	}
 
-	/** Initializes the bot */
-	async init(_token?: string): Promise<this> {
+	/**
+	 * Connects to Discord and syncs the bot's commands.
+	 * @param token The Discord bot token.
+	 */
+	async init(token: string): Promise<this> {
+		if (typeof token !== 'string' || !token.trim()) throw new Error('A Discord bot token is required.');
 		_echo_log({ title: 'init', bot: this }, `Initializing ${this.botChalk(this.name)}`);
-		const token = _token ?? process.env.TOKEN;
-		if (token === undefined) throw new Error('Token is not defined');
 		await super.login(token);
 		await this.application?.fetch();
 

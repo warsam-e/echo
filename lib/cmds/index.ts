@@ -11,13 +11,10 @@ import ping from './ping.ts';
  * Like if you've extended Echo, you can do the following to get the correct type:
  * @example
  * ```ts
- * const { echo, eval, ping } = get_default_cmds<MyEcho>();
- *
- * // the following assumes you setup a static start
- * // method on your extended Echo class
- * const bot = new MyEcho()
- * 		.registerCmds([ echo, eval, ping ])
- * 		.init();
+ * const commands = get_default_cmds<MyEcho>();
+ * const bot = await new MyEcho({ name: 'My Bot', color: 'Blue' })
+ *   .registerGuild(Object.values(commands))
+ *   .init(token);
  *
  * ```
  */
