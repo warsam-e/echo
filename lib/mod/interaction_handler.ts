@@ -85,6 +85,7 @@ export class InteractionHandler {
 	async #_replyToError(interaction: Interaction, error: unknown) {
 		if (!(error instanceof PermissionDeniedError)) console.error(error);
 		if (!interaction.isRepliable() || interaction.replied) return;
+		if (!interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 		const payload = await this.#_formatError(error);
 		if (interaction.replied) return;
