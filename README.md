@@ -14,7 +14,7 @@
 ## Basic Usage
 
 ```ts
-import Echo, { Command } from '$warsam-e/echo';
+import Echo, { Command } from '@warsam-e/echo';
 
 let commands = [
 	new Command<Echo>({
@@ -35,7 +35,7 @@ let commands = [
 		].join('\n');
 
 		return int.editReply(content);
-	})
+	}),
 ];
 
 new Echo({
@@ -47,6 +47,7 @@ new Echo({
 ```
 
 ## Scrollable
+
 Echo includes a class called `Scrollable` which can be used to create scrollable content.
 
 To initate this class, you can use the `create_scrollable` function.
@@ -54,12 +55,13 @@ To initate this class, you can use the `create_scrollable` function.
 ```ts
 import { Command, create_scrollable } from '$warsam-e/echo';
 
-new Command({})
-.addHandler("chat_input", (bot, int) => create_scrollable({
-	int,
-	data: () => [{ title: "foo" }, { title: "bar" }],
-	match: (v) => ({
-    	content: `## ${v.title}`
-  	})
-}));
+new Command({}).addHandler('chat_input', (bot, int) =>
+	create_scrollable({
+		int,
+		data: () => [{ title: 'foo' }, { title: 'bar' }],
+		match: (v) => ({
+			content: `## ${v.title}`,
+		}),
+	}),
+);
 ```
