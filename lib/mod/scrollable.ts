@@ -6,14 +6,13 @@ import {
 	ButtonBuilder,
 	type ButtonInteraction,
 	ButtonStyle,
+	ComponentType,
 	type InteractionEditReplyOptions,
 	type InteractionReplyOptions,
-	type InteractionResponse,
 	type JSONEncodable,
 	type Message,
 	type MessageActionRowComponentBuilder,
 	type MessageActionRowComponentData,
-	type MessageComponentInteraction,
 	MessageFlags,
 	type RepliableInteraction,
 	TextDisplayBuilder,
@@ -25,19 +24,21 @@ export type ScrollableDataType = Array<Record<string, any>>;
 export type ScrollableDataFn<Data extends ScrollableDataType> = () => Awaitable<Data>;
 
 export type ScrollableContent = {
+	/** The Components V2 layout for the page. */
 	components: Array<
 		| JSONEncodable<APIMessageTopLevelComponent>
 		| TopLevelComponentData
 		| ActionRowData<MessageActionRowComponentData | MessageActionRowComponentBuilder>
 		| APIMessageTopLevelComponent
 	>;
+	/** Files to upload with this page. */
 	files?: NonNullable<InteractionReplyOptions['files']>;
 };
 
 export type ScrollableControlType = 'initiator' | 'all';
 
 export interface ScrollableData<Data extends ScrollableDataType> {
-	/** The original interaction, used for initiating the scrollable instance */
+	/** The interaction whose reply will display the paginator. */
 	int: RepliableInteraction;
 	/**
 	 * Show the page count on the buttons row
@@ -45,241 +46,218 @@ export interface ScrollableData<Data extends ScrollableDataType> {
 	 */
 	show_page_count?: boolean;
 	/**
-	 * The message to show when the data fetching fails
+	 * The message to show when the first page cannot be loaded or sent.
 	 * @default "Failed to get data."
 	 */
 	fail_msg?: ScrollableContent;
-	/** The array data to be used in the scrollable */
+	/** Loads the list of items when the paginator opens or reloads. */
 	data: ScrollableDataFn<Data>;
 	/**
 	 * Who can control the scrollable.
 	 * @default 'initiator'
 	 */
 	controllable?: ScrollableControlType;
-	/** The function to match the data with the content */
+	/** Renders the current item and can load additional details for that page. */
 	match: (val: Data[number], index: number, array: Array<Data[number]>) => Awaitable<ScrollableContent>;
 }
 
-async function _try_prom<T>(prom: Awaitable<T>): Promise<T | undefined> {
-	try {
-		return await prom;
-	} catch (e) {
-		console.trace(e);
-	}
+const idleTimeout = 10 * 60 * 1000;
+const tokenLifetime = 15 * 60 * 1000;
+const tokenExpiryBuffer = 10_000;
+const previousId = 'scrollable_prev';
+const nextId = 'scrollable_next';
+const reloadId = 'scrollable_reload';
+
+type Page<Data extends ScrollableDataType> = {
+	data: Data;
+	index: number;
+	content: ScrollableContent;
+};
+
+function pagePayload(page: ScrollableContent): InteractionEditReplyOptions {
+	return {
+		...page,
+		content: null,
+		embeds: [],
+		attachments: [],
+		flags: MessageFlags.IsComponentsV2,
+	};
 }
 
-/**
- * The Scrollable class that handles the scrollable message content.
- * Use the exported {@link create_scrollable} to create a new instance of a scrollable message.
- * @internal
- */
+async function renderPage<Data extends ScrollableDataType>(options: ScrollableData<Data>, data: Data, index: number) {
+	const item = data[index];
+	if (item === undefined) throw new Error('Scrollable data has no page to display.');
+	return { data, index, content: await options.match(item, index, data) };
+}
+
+/** The in-memory session created by {@link create_scrollable}. */
 class Scrollable<Data extends ScrollableDataType> {
-	readonly #_data: Required<ScrollableData<Data>>;
-	#_scrollable_data: Data;
-	#_int: RepliableInteraction;
-	#_index = 0;
-	#_current_content_cache?: ScrollableContent;
-	#_reloading = false;
+	readonly #options: ScrollableData<Data>;
+	#page: Page<Data>;
+	#latestInteraction: RepliableInteraction;
+	#queue = Promise.resolve();
+	#editing = Promise.resolve();
+	#pending = 0;
+	#disabled = false;
+	#closed = false;
 
-	private constructor(data: ScrollableData<Data>, res: Data) {
-		this.#_data = {
-			...data,
-			fail_msg: data.fail_msg ?? Scrollable.#_default_failed_msg,
-			show_page_count: data.show_page_count ?? false,
-			controllable: data.controllable ?? 'initiator',
-		};
-		this.#_int = data.int;
-		this.#_scrollable_data = res;
+	private constructor(options: ScrollableData<Data>, page: Page<Data>) {
+		this.#options = { ...options };
+		this.#page = page;
+		this.#latestInteraction = options.int;
 	}
 
-	static #_default_failed_msg: ScrollableContent = {
-		components: [new TextDisplayBuilder().setContent('Failed to get data.')],
-	};
+	static async init<Data extends ScrollableDataType>(options: ScrollableData<Data>): Promise<void> {
+		const { int } = options;
+		if (!int.deferred && !int.replied) await int.deferReply();
 
-	static #_fail_payload<Editing extends boolean>(
-		fail_msg?: ScrollableContent,
-		_editing?: Editing,
-	): Editing extends true ? InteractionEditReplyOptions : InteractionReplyOptions {
-		return fail_msg ?? Scrollable.#_default_failed_msg;
-	}
-
-	async #_getContent() {
-		if (this.#_current_content_cache) return this.#_current_content_cache;
-		const current_data = this.#_scrollable_data.at(this.#_index);
-		if (!current_data) return this.#_data.fail_msg;
-		const current_content = await _try_prom(this.#_data.match(current_data, this.#_index, this.#_scrollable_data));
-		if (!current_content) return this.#_data.fail_msg;
-		this.#_current_content_cache = current_content;
-		return current_content;
-	}
-
-	async #_updateReloading(val: boolean) {
-		const content = await this.#_getContent();
-		this.#_reloading = val;
-		this.#_int.editReply(this.#_getPayload(content, true));
-	}
-
-	#_getPayload<Editing extends boolean>(
-		data: ScrollableContent,
-		_editing?: Editing,
-	): Editing extends true ? InteractionEditReplyOptions : InteractionReplyOptions {
-		return {
-			content: '',
-			components: this.#_renderComponents(data),
-			files: data.files,
-			flags: [MessageFlags.IsComponentsV2],
-		};
-	}
-
-	/**
-	 * Reloads the data and updates the message content.
-	 *
-	 * Typically this is called by the reload button, but can be called manually.
-	 */
-	async reloadData(bint: ButtonInteraction | null): Promise<void> {
-		if (bint) {
-			await this.#_updateReloading(true);
-			await bint.deferUpdate();
+		let session: Scrollable<Data>;
+		let message: Message;
+		try {
+			const page = await renderPage(options, await options.data(), 0);
+			session = new Scrollable(options, page);
+			message = await int.editReply(pagePayload({ ...page.content, components: session.#components(page, false) }));
+		} catch (error) {
+			console.error(error);
+			await int.editReply(
+				pagePayload(options.fail_msg ?? { components: [new TextDisplayBuilder().setContent('Failed to get data.')] }),
+			);
+			return;
 		}
-
-		this.#_current_content_cache = undefined;
-
-		this.#_scrollable_data = await this.#_data.data();
-		this.#_index = 0;
-
-		const current_content = await this.#_getContent();
-
-		await _try_prom(this.#_int.editReply(this.#_getPayload(current_content, true)));
-
-		if (bint) this.#_updateReloading(false);
+		session.#listen(message);
 	}
 
-	/**
-	 * init Scrollable, this shouldnt be called directly. use the exported {@link create_scrollable}.
-	 * @internal
-	 * @hidden
-	 */
-	static async init<Data extends ScrollableDataType>(data: ScrollableData<Data>): Promise<void> {
-		const res = await _try_prom(data.data());
-		if (res) return new Scrollable(data, res).#init();
-		if (data.int.replied || data.int.deferred) data.int.editReply(Scrollable.#_fail_payload(data.fail_msg, true));
-		else data.int.reply(Scrollable.#_fail_payload(data.fail_msg, false));
-	}
-
-	#_renderComponents(content: ScrollableContent): ScrollableContent['components'] {
-		// const rows: ScrollableContent['components'] = [];
-		const has_data = !!this.#_scrollable_data.length;
-		const can_go_back = !this.#_reloading && has_data && this.#_index !== 0;
-		const can_go_forward = !this.#_reloading && has_data && this.#_scrollable_data.length > this.#_index + 1;
-		const can_reload = !this.#_reloading;
-
-		const { components: _orig } = content;
-		const components: ScrollableContent['components'] = [..._orig];
-
-		const btns = [
+	#components(page: Page<Data>, disabled: boolean): ScrollableContent['components'] {
+		const { index, data, content } = page;
+		const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
 			new ButtonBuilder()
-				.setCustomId('scrollable_prev')
+				.setCustomId(previousId)
 				.setLabel('←')
 				.setStyle(ButtonStyle.Secondary)
-				.setDisabled(!can_go_back),
+				.setDisabled(disabled || index === 0),
 			new ButtonBuilder()
-				.setCustomId('scrollable_next')
+				.setCustomId(nextId)
 				.setLabel('→')
 				.setStyle(ButtonStyle.Secondary)
-				.setDisabled(!can_go_forward),
-			new ButtonBuilder()
-				.setCustomId('scrollable_reload')
-				.setLabel('↻')
-				.setStyle(ButtonStyle.Secondary)
-				.setDisabled(!can_reload),
-			...(this.#_data.show_page_count && has_data
-				? [
-						new ButtonBuilder()
-							.setCustomId('scrollable_page_count')
-							.setLabel(`${this.#_index + 1} / ${this.#_scrollable_data.length}`)
-							.setStyle(ButtonStyle.Secondary)
-							.setDisabled(true),
-					]
-				: []),
-		];
-		components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(btns));
-
-		return components;
+				.setDisabled(disabled || index === data.length - 1),
+			new ButtonBuilder().setCustomId(reloadId).setLabel('↻').setStyle(ButtonStyle.Secondary).setDisabled(disabled),
+		);
+		if (this.#options.show_page_count) {
+			controls.addComponents(
+				new ButtonBuilder()
+					.setCustomId('scrollable_page_count')
+					.setLabel(`${index + 1} / ${data.length}`)
+					.setStyle(ButtonStyle.Secondary)
+					.setDisabled(true),
+			);
+		}
+		return [...content.components, controls];
 	}
 
-	async #init() {
-		const { int } = this.#_data;
-		if (!int.isRepliable()) throw new Error('Interaction is not repliable.');
+	#listen(message: Message) {
+		const collector = message.createMessageComponentCollector({
+			componentType: ComponentType.Button,
+			filter: ({ customId }) => customId === previousId || customId === nextId || customId === reloadId,
+			idle: idleTimeout,
+		});
+		const initialIdle = this.#options.int.createdTimestamp + tokenLifetime - Date.now() - tokenExpiryBuffer;
+		if (initialIdle < idleTimeout) collector.resetTimer({ idle: Math.max(1, initialIdle) });
 
-		let msg: Message | InteractionResponse | undefined;
-
-		const current_content = await this.#_getContent();
-
-		if (int.deferred || int.replied) {
-			msg = await _try_prom(this.#_int.editReply(this.#_getPayload(current_content, true)));
-		} else {
-			msg = await _try_prom(this.#_int.reply(this.#_getPayload(current_content, false)));
-		}
-
-		if (!msg) throw new Error('Scrollable failed to send.');
-
-		const filter = (i: MessageComponentInteraction) =>
-			i.customId === 'scrollable_prev' || i.customId === 'scrollable_next' || i.customId === 'scrollable_reload';
-		const collector = msg.createMessageComponentCollector({ filter });
-		collector.on('collect', async (bint) => {
-			if (this.#_data.controllable === 'initiator' && bint.user.id !== int.user.id) return bint.deferUpdate();
-			if (bint.isButton()) {
-				switch (bint.customId) {
-					case 'scrollable_prev':
-						await this.#_move('prev', bint);
-						break;
-					case 'scrollable_next':
-						await this.#_move('next', bint);
-						break;
-					case 'scrollable_reload':
-						await this.reloadData(bint);
-						break;
-				}
-			}
+		collector.on('collect', (click) => {
+			collector.collected.delete(click.id);
+			collector.users.delete(click.user.id);
+			this.#collect(click);
+		});
+		collector.once('end', (_, reason) => {
+			this.#closed = true;
+			if (reason === 'idle') void this.#expire().catch(console.error);
 		});
 	}
 
-	async #_move(action: 'prev' | 'next', bint?: ButtonInteraction) {
-		switch (action) {
-			case 'prev':
-				if (this.#_index > 0) this.#_index--;
-				break;
-			case 'next':
-				if (this.#_index < this.#_scrollable_data.length - 1) this.#_index++;
-				break;
+	#collect(click: ButtonInteraction) {
+		const acknowledged = click.deferUpdate().then(
+			() => {
+				if (click.createdTimestamp >= this.#latestInteraction.createdTimestamp) this.#latestInteraction = click;
+				return true;
+			},
+			(error) => {
+				console.error(error);
+				return false;
+			},
+		);
+		if (this.#closed || (this.#options.controllable !== 'all' && click.user.id !== this.#options.int.user.id)) return;
+
+		this.#pending++;
+		this.#queue = this.#queue.then(() => this.#handleClick(click.customId, acknowledged)).catch(console.error);
+	}
+
+	async #handleClick(customId: string, acknowledged: Promise<boolean>) {
+		try {
+			if (!(await acknowledged) || this.#closed) return;
+
+			const reload = customId === reloadId;
+			const offset = customId === nextId ? 1 : -1;
+			const { data, index } = this.#page;
+			const nextIndex = reload ? 0 : Math.max(0, Math.min(index + offset, data.length - 1));
+			if (!reload && nextIndex === index) return;
+
+			await this.#setControls(true);
+			if (this.#closed) return;
+			const nextData = reload ? await this.#options.data() : data;
+			if (this.#closed) return;
+			const nextPage = await renderPage(this.#options, nextData, nextIndex);
+			if (this.#closed) return;
+
+			await this.#write(async () => {
+				const disabled = this.#pending > 1;
+				const components = this.#components(nextPage, disabled);
+				await this.#latestInteraction.editReply({ components, files: nextPage.content.files, attachments: [] });
+				this.#page = nextPage;
+				this.#disabled = disabled;
+			});
+		} catch (error) {
+			console.error(error);
+		} finally {
+			this.#pending--;
+			if (!this.#closed && this.#pending === 0) await this.#setControls(false);
 		}
+	}
 
-		this.#_current_content_cache = undefined;
-		const current_content = await this.#_getContent();
+	async #setControls(disabled: boolean) {
+		if (disabled === this.#disabled) return;
+		await this.#write(async () => {
+			await this.#latestInteraction.editReply({ components: this.#components(this.#page, disabled) });
+			this.#disabled = disabled;
+		});
+	}
 
-		await _try_prom(this.#_int.editReply(this.#_getPayload(current_content, true)));
+	#write(edit: () => Promise<void>) {
+		const editing = edit();
+		this.#editing = editing.catch(() => {});
+		return editing;
+	}
 
-		if (bint) await bint.deferUpdate();
+	async #expire() {
+		await this.#editing;
+		await this.#setControls(true);
 	}
 }
 
 /**
- * Creating an instance of {@link Scrollable}.
+ * Displays paginated Components V2 content in an interaction reply.
+ * The session stays in memory and disables its controls after ten minutes without a click.
  *
- * See {@link ScrollableData} for required/available options.
+ * @param data The interaction, data loader, and renderer for the paginator.
  * @example
  * ```ts
- * import {Command, create_scrollable} from 'echo';
+ * import { Command, TextDisplayBuilder, create_scrollable } from '@warsam-e/echo';
  *
- * new Command({...})
- * .addHandler("chat_input", (bot, int) => create_scrollable({
- *   int,
- *   data: () => [{title: "foo"}, {title: "bar"}],
- *   match: (v) => ({
- *      content: `## ${v.title}`
- *   })
- * }));
- *
+ * new Command({ name: 'pages', description: 'Show two pages' })
+ *   .addHandler('chat_input', (_, int) => create_scrollable({
+ *     int,
+ *     data: () => [{ title: 'First' }, { title: 'Second' }],
+ *     match: ({ title }) => ({ components: [new TextDisplayBuilder().setContent(title)] }),
+ *   }));
  * ```
  */
 export const create_scrollable = <Data extends ScrollableDataType>(data: ScrollableData<Data>) => Scrollable.init(data);
