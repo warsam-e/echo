@@ -2,6 +2,7 @@ export {
 	Command,
 	type CommandHasPermission,
 	type CommandInfo,
+	type CommandInteractionHandlers,
 	type CommandResponse,
 	type CommandSubGroup,
 } from './command.ts';

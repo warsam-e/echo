@@ -1,5 +1,6 @@
 import type { Locale as DiscordLocale } from 'discord.js';
 
+/** @inline */
 type LocaleTranslations = Partial<Record<DiscordLocale, string>>;
 
 /**

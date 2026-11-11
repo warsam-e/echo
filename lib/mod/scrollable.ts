@@ -20,6 +20,7 @@ import {
 	type TopLevelComponentData,
 } from 'discord.js';
 
+/** @inline */
 // biome-ignore lint/suspicious/noExplicitAny: it's needed here
 type ScrollableDataType = Array<Record<string, any>>;
 

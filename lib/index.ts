@@ -35,6 +35,7 @@ import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
 import pkg from '../package.json';
 
+/** @inline */
 type InteractionReplyFlag = MessageFlags.IsComponentsV2 | MessageFlags.SuppressEmbeds;
 
 /** Message content and styling returned by Echo's reply formatters. */
@@ -75,8 +76,6 @@ export interface EchoOptions {
 class Echo extends Client {
 	name: string;
 	color: ColorResolvable;
-	/** handler for interactions */
-	handler: InteractionHandler | undefined;
 	/** Registered commands and subcommands keyed by their internal route. */
 	commands = new Map<string, Command<this>>();
 	echoVersion = pkg.version;
@@ -274,7 +273,7 @@ class Echo extends Client {
 			throw new Error('Client user is not defined');
 		}
 
-		this.handler = new InteractionHandler(this);
+		new InteractionHandler(this);
 		await _register_cmds(this);
 
 		_echo_log({ title: 'init', bot: this }, `Logged in as ${this.botChalk(this.user.tag)}!`);

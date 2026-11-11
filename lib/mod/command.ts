@@ -29,12 +29,11 @@ export type CommandResponse = void | Promise<
 	InteractionResponse | InteractionCallbackResponse | ScrollableHandle | void | Message
 >;
 
+/** @inline */
 type InteractionHandlerCallback<T extends Interaction, Inst> = (bot: Inst, int: T) => CommandResponse;
 
 /**
- * Typings for interaction handlers.
- * used in {@link Command.addHandler} method.
- * @internal
+ * Maps each interaction kind to the callback accepted by {@link Command.addHandler}.
  */
 export interface CommandInteractionHandlers<Inst = Echo> {
 	chat_input: InteractionHandlerCallback<ChatInputCommandInteraction, Inst>;
@@ -49,6 +48,7 @@ export interface CommandInteractionHandlers<Inst = Echo> {
 /**
  * The base info for a command.
  * @internal
+ * @inline
  */
 interface CommandInfoBasics {
 	name: string | Locales;
@@ -71,24 +71,27 @@ interface CommandInfoBasics {
 /**
  * Typings for a command initiated by a message context menu action.
  * @internal
+ * @inline
  */
-interface CommandInfoMessage extends CommandInfoBasics {
+interface CommandInfoMessage {
 	type: ApplicationCommandType.Message;
 }
 
 /**
  * Typings for a command initiated by a user profile context menu action.
  * @internal
+ * @inline
  */
-interface CommandInfoUser extends CommandInfoBasics {
+interface CommandInfoUser {
 	type: ApplicationCommandType.User;
 }
 
 /**
  * Typings for a command initiated by a slash command.
  * @internal
+ * @inline
  */
-interface CommandInfoChat extends CommandInfoBasics {
+interface CommandInfoChat {
 	type?: ApplicationCommandType.ChatInput;
 	description: string | Locales;
 	options?: ApplicationCommandOptionData[];
@@ -97,7 +100,7 @@ interface CommandInfoChat extends CommandInfoBasics {
 /**
  * Configuration for a slash command or context menu command.
  */
-export type CommandInfo = CommandInfoChat | CommandInfoMessage | CommandInfoUser;
+export type CommandInfo = CommandInfoBasics & (CommandInfoChat | CommandInfoMessage | CommandInfoUser);
 
 /**
  * Checks if a user has permission to run a command.
@@ -235,6 +238,29 @@ export class Command<Inst = Echo> {
 		};
 	}
 
+	/**
+	 * Registers a callback for an interaction kind. The kind determines the callback's interaction type.
+	 * Calling this again with the same kind replaces the previous callback.
+	 *
+	 * @param type One of `chat_input`, `button`, `modal_submit`, `select_menu`,
+	 * `user_context_menu`, `message_context_menu`, or `autocomplete`.
+	 * @param handler Receives the Echo client and the interaction for the selected kind.
+	 *
+	 * @example Respond to a slash command
+	 * ```ts
+	 * const ping = new Command({ name: 'ping', description: 'Check if the bot is online' })
+	 *   .addHandler('chat_input', (_bot, interaction) => interaction.reply('Pong!'));
+	 * ```
+	 *
+	 * @example Handle a confirmation button
+	 * Use `bot.id(interaction, 'confirm')` when creating the button in the slash command handler.
+	 * ```ts
+	 * command.addHandler('button', (bot, interaction) => {
+	 *   if (bot.action(interaction) !== 'confirm') return;
+	 *   return interaction.reply('Confirmed!');
+	 * });
+	 * ```
+	 */
 	addHandler<T extends keyof CommandInteractionHandlers<Inst>>(
 		type: T,
 		handler: CommandInteractionHandlers<Inst>[T],

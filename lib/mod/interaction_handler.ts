@@ -128,7 +128,7 @@ export class InteractionHandler {
 	 * Resolve the command (and sub commands) used in the interaction, if available.
 	 * @throws {Error} Command not found.
 	 */
-	resolveCommand(int: Interaction): Command[] {
+	#resolveCommand(int: Interaction): Command[] {
 		if (int.isMessageComponent() || int.isModalSubmit()) {
 			const route = resolveComponentCommandRoute(int.customId, this.#_inst.commands.keys());
 			return route ? this.#_resolveRoute(route) : [];
@@ -162,7 +162,7 @@ export class InteractionHandler {
 	}
 
 	async #_handleInteraction(type: keyof CommandInteractionHandlers<Echo>, int: Interaction): Promise<void> {
-		const cmds = this.resolveCommand(int);
+		const cmds = this.#resolveCommand(int);
 		for (const cmd of cmds) {
 			if (!(await this.#_cmdPermHandler(cmd, int))) throw new PermissionDeniedError();
 		}

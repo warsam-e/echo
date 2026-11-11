@@ -6,19 +6,19 @@
 	"excludeInternal": false,
 	"externalSymbolLinkMappings": {
 		"discord.js": {
-			"*": "https://discord.js.org/docs/packages/discord.js/14.25.1"
+			"*": "https://discord.js.org/docs/packages/discord.js/14.28.1"
 		},
 		"@discordjs/collection": {
-			"*": "https://discord.js.org/docs/packages/collection/main"
+			"*": "https://discord.js.org/docs/packages/collection/1.5.3"
 		},
 		"@discordjs/util": {
-			"*": "https://discord.js.org/docs/packages/util/main"
+			"*": "https://discord.js.org/docs/packages/util/1.2.0"
 		},
 		"discord-api-types": {
 			"*": "https://discord-api-types.dev/"
 		},
 		"chalk": {
-			"*": "https://github.com/chalk/chalk"
+			"*": "https://github.com/chalk/chalk/tree/v6.0.1"
 		}
 	},
 	"navigationLinks": {
