@@ -80,6 +80,7 @@ export class InteractionHandler {
 			await this.#_replyToError(interaction, error);
 			return;
 		}
+		if (interaction.isAutocomplete() && !interaction.responded) await interaction.respond([]);
 
 		if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
 			console.warn(
@@ -91,6 +92,10 @@ export class InteractionHandler {
 
 	async #_replyToError(interaction: Interaction, error: unknown) {
 		if (!(error instanceof PermissionDeniedError) && !(error instanceof CooldownError)) console.error(error);
+		if (interaction.isAutocomplete()) {
+			if (!interaction.responded) await interaction.respond([]);
+			return;
+		}
 		if (!interaction.isRepliable() || interaction.replied) return;
 		if (!interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
