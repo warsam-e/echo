@@ -83,6 +83,12 @@ type Page<Data extends ScrollableDataType> = {
 type ScrollableSession = { stop: () => Promise<void> };
 const sessions = new WeakMap<RepliableInteraction['client'], Map<string, ScrollableSession>>();
 
+/** Controls an active pagination session. */
+export interface ScrollableHandle {
+	/** Stops pagination and disables its controls, leaving the current page visible. */
+	stop(): Promise<void>;
+}
+
 function pagePayload(page: ScrollableContent): InteractionEditReplyOptions {
 	return {
 		...page,
@@ -115,6 +121,7 @@ class Scrollable<Data extends ScrollableDataType> {
 	#closed = false;
 	#replaced = false;
 	#collector?: InteractionCollector<ButtonInteraction>;
+	#finished?: Promise<void>;
 
 	private constructor(options: ScrollableData<Data>, page: Page<Data>) {
 		this.#options = { ...options };
@@ -122,7 +129,9 @@ class Scrollable<Data extends ScrollableDataType> {
 		this.#latestInteraction = options.int;
 	}
 
-	static async init<Data extends ScrollableDataType>(options: ScrollableData<Data>): Promise<void> {
+	static async init<Data extends ScrollableDataType>(
+		options: ScrollableData<Data>,
+	): Promise<ScrollableHandle | undefined> {
 		const { int } = options;
 		if (!int.deferred && !int.replied) await int.deferReply();
 		const original = await int.fetchReply();
@@ -168,6 +177,7 @@ class Scrollable<Data extends ScrollableDataType> {
 			if (cancelled) return;
 			session.#listen(message, release);
 			listening = true;
+			return session;
 		} catch (error) {
 			console.error(error);
 			if (cancelled) return;
@@ -180,6 +190,12 @@ class Scrollable<Data extends ScrollableDataType> {
 		} finally {
 			if (!listening) release();
 		}
+	}
+
+	/** Stops pagination and disables its controls, leaving the current page visible. */
+	async stop(): Promise<void> {
+		if (!this.#closed) this.#collector?.stop('manual');
+		await this.#finished;
 	}
 
 	#components(page: Page<Data>, disabled: boolean): ScrollableContent['components'] {
@@ -230,8 +246,9 @@ class Scrollable<Data extends ScrollableDataType> {
 		});
 		collector.once('end', (_, reason) => {
 			this.#closed = true;
-			const finished = reason === 'idle' ? this.#expire() : this.#editing;
-			void finished.catch(console.error).finally(release);
+			const finished = reason === 'idle' || reason === 'manual' ? this.#expire() : this.#editing;
+			this.#finished = finished.finally(release);
+			void this.#finished.catch(console.error);
 		});
 	}
 
@@ -328,6 +345,7 @@ class Scrollable<Data extends ScrollableDataType> {
  * The session stays in memory and disables its controls after ten minutes without a click.
  *
  * @param data The interaction, data loader, and renderer for the paginator.
+ * @returns A handle for stopping the session, or undefined if no session opened.
  * @example
  * ```ts
  * import { Command, TextDisplayBuilder, create_scrollable } from '@warsam-e/echo';
