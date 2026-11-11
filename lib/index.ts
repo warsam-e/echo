@@ -22,6 +22,7 @@ import {
 import {
 	type CommandScope,
 	commandRoute,
+	componentAction,
 	componentCommandRoute,
 	componentId,
 	interactionCommandRoute,
@@ -227,6 +228,18 @@ class Echo extends Client {
 		const route = 'customId' in target ? componentCommandRoute(target.customId) : interactionCommandRoute(target);
 		if (!route || !this.commands.has(route)) throw new Error('Interaction has no registered command route.');
 		return componentId(route, action);
+	}
+
+	/**
+	 * Reads the action from an Echo button, select menu, or modal interaction.
+	 * @param interaction The interaction carrying the custom ID created by {@link id}.
+	 * @returns The complete action string, including any colons or other separators it contains.
+	 * @throws If the interaction's custom ID does not contain an Echo action.
+	 */
+	action(interaction: MessageComponentInteraction | ModalSubmitInteraction): string {
+		const action = componentAction(interaction.customId);
+		if (action === undefined) throw new Error('Interaction has no Echo action.');
+		return action;
 	}
 
 	/**

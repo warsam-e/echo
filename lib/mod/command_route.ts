@@ -33,3 +33,9 @@ export function componentCommandRoute(customId: string): string | undefined {
 	if (separator <= componentPrefix.length) return;
 	return customId.slice(componentPrefix.length, separator);
 }
+
+export function componentAction(customId: string): string | undefined {
+	const route = componentCommandRoute(customId);
+	if (route === undefined) return;
+	return customId.slice(componentPrefix.length + route.length + 1);
+}
