@@ -80,6 +80,9 @@ type Page<Data extends ScrollableDataType> = {
 	content: ScrollableContent;
 };
 
+type ScrollableSession = { stop: () => Promise<void> };
+const sessions = new WeakMap<RepliableInteraction['client'], Map<string, ScrollableSession>>();
+
 function pagePayload(page: ScrollableContent): InteractionEditReplyOptions {
 	return {
 		...page,
@@ -110,6 +113,7 @@ class Scrollable<Data extends ScrollableDataType> {
 	#pending = 0;
 	#disabled = false;
 	#closed = false;
+	#replaced = false;
 	#collector?: InteractionCollector<ButtonInteraction>;
 
 	private constructor(options: ScrollableData<Data>, page: Page<Data>) {
@@ -121,30 +125,61 @@ class Scrollable<Data extends ScrollableDataType> {
 	static async init<Data extends ScrollableDataType>(options: ScrollableData<Data>): Promise<void> {
 		const { int } = options;
 		if (!int.deferred && !int.replied) await int.deferReply();
+		const original = await int.fetchReply();
+		const active = sessions.get(int.client) ?? new Map<string, ScrollableSession>();
+		sessions.set(int.client, active);
+		const previous = active.get(original.id);
+		const retiring = previous?.stop() ?? Promise.resolve();
+		let cancelled = false;
+		let listening = false;
+		let session: Scrollable<Data> | undefined;
+		let initialEdit: Promise<unknown> = Promise.resolve();
+		const current: ScrollableSession = {
+			stop: async () => {
+				cancelled = true;
+				const stopped = session ? session.#stop() : Promise.resolve();
+				await retiring;
+				await initialEdit.catch(() => {});
+				await stopped;
+			},
+		};
+		active.set(original.id, current);
+		const release = () => {
+			if (active.get(original.id) === current) active.delete(original.id);
+		};
 
-		let session: Scrollable<Data>;
-		let message: Message;
 		try {
+			await retiring;
+			if (cancelled) return;
 			const data = await options.data();
+			if (cancelled) return;
 			if (!data.length) {
-				await int.editReply(emptyPayload(options.empty_msg));
+				initialEdit = int.editReply(emptyPayload(options.empty_msg));
+				await initialEdit;
 				return;
 			}
 			const page = await renderPage(options, data, 0);
+			if (cancelled) return;
 			session = new Scrollable(options, page);
-			message = await int.editReply(
-				pagePayload({ ...page.content, components: session.#components(page, false) }),
-			);
+			const payload = pagePayload({ ...page.content, components: session.#components(page, false) });
+			const updated = session.#write(() => int.editReply(payload));
+			initialEdit = updated;
+			const message = await updated;
+			if (cancelled) return;
+			session.#listen(message, release);
+			listening = true;
 		} catch (error) {
 			console.error(error);
-			await int.editReply(
+			if (cancelled) return;
+			initialEdit = int.editReply(
 				pagePayload(
 					options.fail_msg ?? { components: [new TextDisplayBuilder().setContent('Failed to get data.')] },
 				),
 			);
-			return;
+			await initialEdit;
+		} finally {
+			if (!listening) release();
 		}
-		session.#listen(message);
 	}
 
 	#components(page: Page<Data>, disabled: boolean): ScrollableContent['components'] {
@@ -178,7 +213,7 @@ class Scrollable<Data extends ScrollableDataType> {
 		return [...content.components, controls];
 	}
 
-	#listen(message: Message) {
+	#listen(message: Message, release: () => void) {
 		const collector = message.createMessageComponentCollector({
 			componentType: ComponentType.Button,
 			filter: ({ customId }) => customId === previousId || customId === nextId || customId === reloadId,
@@ -195,11 +230,13 @@ class Scrollable<Data extends ScrollableDataType> {
 		});
 		collector.once('end', (_, reason) => {
 			this.#closed = true;
-			if (reason === 'idle') void this.#expire().catch(console.error);
+			const finished = reason === 'idle' ? this.#expire() : this.#editing;
+			void finished.catch(console.error).finally(release);
 		});
 	}
 
 	#collect(click: ButtonInteraction) {
+		if (this.#closed) return;
 		const acknowledged = click.deferUpdate().then(
 			() => {
 				if (click.createdTimestamp >= this.#latestInteraction.createdTimestamp) this.#latestInteraction = click;
@@ -264,15 +301,25 @@ class Scrollable<Data extends ScrollableDataType> {
 		});
 	}
 
-	#write(edit: () => Promise<void>) {
+	#write<Result>(edit: () => Promise<Result>): Promise<Result> {
 		const editing = edit();
-		this.#editing = editing.catch(() => {});
+		this.#editing = editing.then(
+			() => {},
+			() => {},
+		);
 		return editing;
+	}
+
+	async #stop() {
+		this.#replaced = true;
+		this.#closed = true;
+		this.#collector?.stop('replaced');
+		await this.#editing;
 	}
 
 	async #expire() {
 		await this.#editing;
-		await this.#setControls(true);
+		if (!this.#replaced) await this.#setControls(true);
 	}
 }
 
