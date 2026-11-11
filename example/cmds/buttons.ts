@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Command } from '$index.ts';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Command, MessageFlags } from '$index.ts';
 
 export default new Command({
 	name: 'buttons',
@@ -19,11 +19,11 @@ export default new Command({
 							new ActionRowBuilder<ButtonBuilder>().addComponents(
 								new ButtonBuilder()
 									.setLabel('Test')
-									.setCustomId(bot.customId('button1', int))
+									.setCustomId(bot.id(int, 'button-1'))
 									.setStyle(ButtonStyle.Primary),
 							),
 						],
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					}),
 				),
 			new Command({
@@ -37,7 +37,7 @@ export default new Command({
 							new ActionRowBuilder<ButtonBuilder>().addComponents(
 								new ButtonBuilder()
 									.setLabel('Test')
-									.setCustomId(bot.customId('button2', int))
+									.setCustomId(bot.id(int, 'button2'))
 									.setStyle(ButtonStyle.Primary),
 							),
 						],
@@ -57,11 +57,11 @@ export default new Command({
 						new ActionRowBuilder<ButtonBuilder>().addComponents(
 							new ButtonBuilder()
 								.setLabel('Test 2')
-								.setCustomId(bot.customId('button3', int))
+								.setCustomId(bot.id(int, 'button3'))
 								.setStyle(ButtonStyle.Primary),
 						),
 					],
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				}),
 			),
 	]);

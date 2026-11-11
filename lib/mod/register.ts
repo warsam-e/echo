@@ -1,201 +1,112 @@
-import type { ApplicationCommand, Collection, Guild } from 'discord.js';
+import {
+	type ApplicationCommandData,
+	ApplicationIntegrationType,
+	type ClientApplication,
+	type Guild,
+	InteractionContextType,
+	type Snowflake,
+} from 'discord.js';
 import type { Echo } from '$index.ts';
-import type { Command, CommandInfoExport } from './command.ts';
+import type { CommandScope } from './command_route.ts';
 import { _echo_log } from './logging.ts';
 
-async function _register_global_command<Inst extends Echo>(bot: Inst, cmds: Collection<string, Command<Inst>>) {
-	if (!bot.application) return;
-	return _echo_log(
-		{
-			cb: bot.rest.put(`/applications/${bot.application.id}/commands`, {
-				body: cmds.map((c) => c.commandInfo()),
-			}),
-			title: 'cmds/global',
-			bot,
-		},
-		`Adding ${bot.botChalk(cmds.size.toLocaleString())} global commands`,
+function rootCommands(bot: Echo, scope: CommandScope) {
+	const commands: ApplicationCommandData[] = [];
+	for (const [route, command] of bot.commands) {
+		const [commandScope, , , subcommand] = route.split('/');
+		if (commandScope === scope && subcommand === undefined) commands.push(command.commandInfo());
+	}
+	return commands;
+}
+
+function globalCommands(bot: Echo, application: ClientApplication): ApplicationCommandData[] {
+	const installTypes = [ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall].filter(
+		(type) => application.integrationTypesConfig?.[type] !== undefined,
 	);
-}
+	if (!installTypes.length) installTypes.push(ApplicationIntegrationType.GuildInstall);
 
-async function _update_global_command<Inst extends Echo>(bot: Inst, current: ApplicationCommand, cmd: Command<Inst>) {
-	if (!bot.application) return;
-	return _echo_log(
-		{
-			cb: bot.rest.patch(`/applications/${bot.application.id}/commands/${current.id}`, {
-				body: cmd.commandInfo(),
-			}),
-			title: 'cmds/update',
-			bot,
-		},
-		`Updating global command ${bot.botChalk(cmd.name.default)}`,
-	);
-}
-
-function _similar_cmd(cmd: ApplicationCommand, local_cmd: CommandInfoExport) {
-	const orig = cmd.equals(local_cmd);
-	const compareArrs = <T>(a: T[], b: T[]) => a.length === b.length && a.every((v) => b.includes(v));
-	const integration_types = cmd.integrationTypes ?? [];
-	const contexts = cmd.contexts ?? [];
-
-	const local_integration_types = local_cmd.integration_types ?? [];
-	const local_contexts = local_cmd.contexts ?? [];
-
-	return orig && compareArrs(integration_types, local_integration_types) && compareArrs(contexts, local_contexts);
-}
-
-async function _register_global<Inst extends Echo>(bot: Inst, cmds: Collection<string, Command<Inst>>) {
-	if (!bot.application) return;
-	const cmds_manager = bot.application.commands;
-	await cmds_manager.fetch({
-		withLocalizations: true,
+	return rootCommands(bot, 'global').map((command) => {
+		const integrationTypes = command.integrationTypes ?? installTypes;
+		const defaultContexts = [InteractionContextType.Guild, InteractionContextType.BotDM];
+		if (integrationTypes.includes(ApplicationIntegrationType.UserInstall)) {
+			defaultContexts.push(InteractionContextType.PrivateChannel);
+		}
+		return { ...command, integrationTypes, contexts: command.contexts ?? defaultContexts };
 	});
+}
 
-	const removing = [...cmds_manager.cache.filter((c) => !cmds.has(c.name)).values()];
-	const adding: Array<Command<Inst>> = [];
-	const updating: Array<[Command<Inst>, ApplicationCommand]> = [];
+function guildCommands(bot: Echo): ApplicationCommandData[] {
+	return rootCommands(bot, 'guild').map((command) => ({
+		...command,
+		integrationTypes: undefined,
+		contexts: undefined,
+	}));
+}
 
-	for (const cmd of cmds.values()) {
-		const local_cmd = cmd.commandInfo();
-		const find = cmds_manager.cache.find((c) => c.name === cmd.name.default);
-		if (!find) adding.push(cmd);
-		else {
-			const should_update = !_similar_cmd(find, local_cmd);
-			if (should_update) updating.push([cmd, find]);
-		}
-	}
+function matchesSettings<T>(desired: readonly T[] | undefined, current: readonly T[] | null): boolean {
+	return (
+		desired === undefined ||
+		(current !== null && desired.length === current.length && desired.every((value) => current.includes(value)))
+	);
+}
 
-	if (!removing.length && !adding.length && !updating.length) return;
-	await _echo_log({ title: 'cmds/global', bot }, 'Changes detected for global commands');
-
-	if (removing.length) {
-		for (const cmd of removing) {
-			await _echo_log(
-				{ cb: cmd.delete(), title: 'cmds/delete', bot },
-				`Removing global command ${bot.botChalk(cmd.name)}`,
+async function syncCommands(
+	bot: Echo,
+	manager: ClientApplication['commands'] | Guild['commands'],
+	desired: ApplicationCommandData[],
+	target: string,
+): Promise<void> {
+	const current = await manager.fetch({ withLocalizations: true });
+	const unchanged =
+		current.size === desired.length &&
+		desired.every((command) => {
+			const saved = current.find((entry) => entry.type === command.type && entry.name === command.name);
+			return (
+				saved &&
+				matchesSettings(command.integrationTypes, saved.integrationTypes) &&
+				matchesSettings(command.contexts, saved.contexts) &&
+				saved.equals(
+					{
+						...command,
+						integrationTypes: saved.integrationTypes ?? undefined,
+						contexts: saved.contexts ?? undefined,
+					},
+					true,
+				)
 			);
-		}
-	}
-
-	if (adding.length) {
-		await _echo_log(
-			{
-				title: 'cmds/global',
-				bot,
-			},
-			`Adding ${bot.botChalk(adding.length)} global commands`,
-		);
-
-		await _register_global_command(bot, cmds);
-	}
-
-	if (updating.length) {
-		await _echo_log(
-			{
-				title: 'cmds/global',
-				bot,
-			},
-			`Updating ${bot.botChalk(updating.length)} global commands`,
-		);
-
-		for await (const [cmd, find] of updating) {
-			await _update_global_command(bot, find, cmd);
-		}
-	}
+		});
+	if (unchanged) return;
 
 	await _echo_log(
-		{ title: 'cmds/global', bot },
-		`Registered ${bot.botChalk(cmds.size.toLocaleString())} global commands`,
+		{ cb: () => manager.set(desired), title: 'cmds', bot },
+		`Syncing ${bot.botChalk(desired.length)} commands for ${bot.botChalk(target)}`,
 	);
 }
 
-async function _register_guild<Inst extends Echo>(bot: Inst, guild: Guild, cmds: Collection<string, Command<Inst>>) {
-	const cmds_manager = guild.commands;
-	await cmds_manager.fetch({
-		withLocalizations: true,
+export async function _register_cmds(bot: Echo) {
+	const application = bot.application;
+	if (!application) throw new Error('Application is not defined');
+
+	const guilds = guildCommands(bot);
+	const guildSyncs = new Map<Snowflake, Promise<void>>();
+	const syncGuild = (guild: Guild, commands: ApplicationCommandData[]) => {
+		const pending = guildSyncs.get(guild.id);
+		if (pending) return pending;
+		const sync = syncCommands(bot, guild.commands, commands, guild.name).finally(() => guildSyncs.delete(guild.id));
+		guildSyncs.set(guild.id, sync);
+		return sync;
+	};
+
+	bot.on('guildCreate', async (guild) => {
+		try {
+			await syncGuild(guild, guildCommands(bot));
+		} catch (error) {
+			console.error(`Failed to sync commands for guild ${guild.id}`, error);
+		}
 	});
-
-	const removing = [...cmds_manager.cache.filter((c) => !cmds.has(c.name)).values()];
-	const adding: Array<Command<Inst>> = [];
-	const updating: Array<[Command<Inst>, ApplicationCommand]> = [];
-
-	for (const cmd of cmds.values()) {
-		const local_cmd = cmd.commandInfo();
-		const find = cmds_manager.cache.find((c) => c.name === cmd.name.default);
-		if (!find) adding.push(cmd);
-		else {
-			const should_update = !find.equals(local_cmd);
-			if (should_update) updating.push([cmd, find]);
-		}
+	const pendingSyncs = bot.guilds.cache.map((guild) => syncGuild(guild, guilds));
+	if (!bot.shard || bot.shard.ids.includes(0)) {
+		pendingSyncs.push(syncCommands(bot, application.commands, globalCommands(bot, application), 'global'));
 	}
-
-	if (!removing.length && !adding.length && !updating.length) return;
-	await _echo_log({ title: 'cmds/guild', bot }, `Changes detected for guild ${bot.botChalk(guild.name)}`);
-
-	if (removing.length) {
-		for (const cmd of removing) {
-			await _echo_log(
-				{ cb: cmd.delete(), title: 'cmds/delete', bot },
-				`Removing guild command ${bot.botChalk(cmd.name)} for ${bot.botChalk(guild.name)}`,
-			);
-		}
-	}
-
-	if (adding.length) {
-		await _echo_log(
-			{
-				title: 'cmds/guild',
-				bot,
-			},
-			`Adding ${bot.botChalk(adding.length)} guild commands for guild ${bot.botChalk(guild.name)}`,
-		);
-
-		for await (const cmd of adding) {
-			await _echo_log(
-				{ cb: cmds_manager.create(cmd.commandInfo()), title: 'cmds/adding', bot },
-				`Registering guild command ${bot.botChalk(cmd.name.default)} for ${bot.botChalk(guild.name)}`,
-			);
-		}
-	}
-
-	if (updating.length) {
-		await _echo_log(
-			{
-				title: 'cmds/guild',
-				bot,
-			},
-			`Updating ${bot.botChalk(updating.length)} guild commands for guild ${bot.botChalk(guild.name)}`,
-		);
-
-		for await (const [cmd, find] of updating) {
-			const local_cmd = cmd.commandInfo();
-			await _echo_log(
-				{ cb: find.edit(local_cmd), title: 'cmds/update', bot },
-				`Updating guild command ${bot.botChalk(cmd.name.default)} for ${bot.botChalk(guild.name)}`,
-			);
-		}
-	}
-}
-
-/**
- * register commands. Don't call this function directly, Echo will call this function for you on startup as long as the commands are defined with .registerCommands()
- * @internal
- */
-export async function _register_cmds<Inst extends Echo>(bot: Inst) {
-	if (!bot.application) throw new Error('Application is not defined');
-
-	const local_global_commands = bot.commands.filter((c) => c.global);
-	const local_guild_commands = bot.commands.filter((c) => !c.global);
-
-	if (!local_global_commands.size && !local_guild_commands.size)
-		return _echo_log({ title: 'cmds', bot }, 'No commands to register');
-
-	if (local_guild_commands.size > 0) {
-		await Promise.all(
-			bot.guilds.cache.map(async (guild) => {
-				await _register_guild(bot, guild, local_guild_commands);
-			}),
-		);
-	}
-
-	await _register_global(bot, local_global_commands);
+	await Promise.all(pendingSyncs);
 }

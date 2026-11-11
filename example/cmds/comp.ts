@@ -1,11 +1,22 @@
-import { ButtonBuilder, ButtonStyle, ContainerBuilder, MessageFlags, UserSelectMenuBuilder } from 'discord.js';
+import {
+	ButtonBuilder,
+	ButtonStyle,
+	ContainerBuilder,
+	codeBlock,
+	MessageFlags,
+	UserSelectMenuBuilder,
+} from 'discord.js';
 import { Command } from '$mod/index.ts';
 
 export default new Command({
 	name: 'comp',
 	description: 'a command to test out the new components stuff',
 })
-	.addHandler('button', (_bot, int) => int.reply(`${int.customId} was clicked!`))
+	.addHandler('button', (bot, int) =>
+		int.reply(
+			`button was clicked!\n${codeBlock([`int.customId: ${int.customId}`, `bot.action(int): ${bot.action(int)}`].join('\n'))}`,
+		),
+	)
 	.addHandler('select_menu', (_bot, int) => int.reply(`${int.values.join(', ')} was selected!`))
 	.addHandler('chat_input', async (bot, int) => {
 		const container = new ContainerBuilder()
@@ -16,16 +27,14 @@ export default new Command({
 			)
 			.addActionRowComponents((r) =>
 				r.addComponents(
-					new UserSelectMenuBuilder()
-						.setCustomId(bot.customId('select', int))
-						.setPlaceholder('Select a user!'),
+					new UserSelectMenuBuilder().setCustomId(bot.id(int, 'select')).setPlaceholder('Select a user!'),
 				),
 			)
 			.addSeparatorComponents((s) => s)
 			.addActionRowComponents((r) =>
 				r.addComponents(
 					new ButtonBuilder()
-						.setCustomId(bot.customId('button', int))
+						.setCustomId(bot.id(int, 'button'))
 						.setLabel('Click me!')
 						.setStyle(ButtonStyle.Primary),
 				),

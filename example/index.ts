@@ -1,12 +1,13 @@
 import Echo, { ActivityType } from '$index.ts';
 import cmds from './cmds/index.ts';
+import { env } from './env.ts';
 
 const bot = await new Echo({
 	name: 'Echo Test',
 	color: 'LuminousVividPink',
 })
-	.registerCommands(cmds)
-	.init();
+	.registerGuild(cmds)
+	.init(env.BOT_TOKEN);
 
 const [guilds, users] = await Promise.all([bot.guildCount(), bot.memberCount()]);
 

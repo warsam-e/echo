@@ -1,53 +1,56 @@
 import {
 	type AnySelectMenuInteraction,
+	type ApplicationCommandData,
 	type ApplicationCommandOptionData,
 	ApplicationCommandOptionType,
 	type ApplicationCommandSubCommandData,
 	ApplicationCommandType,
-	ApplicationIntegrationType,
+	type ApplicationIntegrationType,
 	type AutocompleteInteraction,
+	type Awaitable,
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
 	type Interaction,
-	InteractionContextType,
+	type InteractionCallbackResponse,
+	type InteractionContextType,
 	type InteractionResponse,
 	type Message,
 	type MessageContextMenuCommandInteraction,
 	type ModalSubmitInteraction,
+	type PermissionResolvable,
 	type UserContextMenuCommandInteraction,
 } from 'discord.js';
 import type { Echo } from '$index.ts';
-import { Locales, type LocalesPartial, set_locales } from './locales.ts';
+import { Locales, set_locales } from './locales.ts';
+import type { ScrollableHandle } from './scrollable.ts';
 
-// biome-ignore lint/suspicious/noConfusingVoidType: it's intended
-export type CommandResponse = void | Promise<InteractionResponse | void | Message>;
+export type CommandResponse = void | Promise<
+	// biome-ignore lint/suspicious/noConfusingVoidType: it's intended
+	InteractionResponse | InteractionCallbackResponse | ScrollableHandle | void | Message
+>;
 
-export type InteractionHadlerCB<T extends Interaction, Inst = Echo> = (bot: Inst, int: T) => CommandResponse;
+/** @inline */
+type InteractionHandlerCallback<T extends Interaction, Inst> = (bot: Inst, int: T) => CommandResponse;
 
 /**
- * Typings for interaction handlers.
- * used in {@link Command.addHandler} method.
- * @internal
+ * Maps each interaction kind to the callback accepted by {@link Command.addHandler}.
  */
 export interface CommandInteractionHandlers<Inst = Echo> {
-	chat_input: InteractionHadlerCB<ChatInputCommandInteraction, Inst>;
-	button: InteractionHadlerCB<ButtonInteraction, Inst>;
-	modal_submit: InteractionHadlerCB<ModalSubmitInteraction, Inst>;
-	select_menu: InteractionHadlerCB<AnySelectMenuInteraction, Inst>;
-	user_context_menu: InteractionHadlerCB<UserContextMenuCommandInteraction, Inst>;
-	message_context_menu: InteractionHadlerCB<MessageContextMenuCommandInteraction, Inst>;
-	autocomplete: InteractionHadlerCB<AutocompleteInteraction, Inst>;
+	chat_input: InteractionHandlerCallback<ChatInputCommandInteraction, Inst>;
+	button: InteractionHandlerCallback<ButtonInteraction, Inst>;
+	modal_submit: InteractionHandlerCallback<ModalSubmitInteraction, Inst>;
+	select_menu: InteractionHandlerCallback<AnySelectMenuInteraction, Inst>;
+	user_context_menu: InteractionHandlerCallback<UserContextMenuCommandInteraction, Inst>;
+	message_context_menu: InteractionHandlerCallback<MessageContextMenuCommandInteraction, Inst>;
+	autocomplete: InteractionHandlerCallback<AutocompleteInteraction, Inst>;
 }
-
-export type CommandHandler<Inst, T extends keyof CommandInteractionHandlers<Inst>> = Partial<{
-	[K in T]: CommandInteractionHandlers<Inst>[K];
-}>;
 
 /**
  * The base info for a command.
  * @internal
+ * @inline
  */
-export interface CommandInfoBasics {
+interface CommandInfoBasics {
 	name: string | Locales;
 	/**
 	 * @default false
@@ -57,6 +60,10 @@ export interface CommandInfoBasics {
 	 * @default false
 	 */
 	nsfw?: boolean;
+	/** Default member permissions for the top-level command, shared by all its subcommands. */
+	default_member_permissions?: PermissionResolvable | null;
+	/** Per-user cooldown for command invocations in milliseconds, from 0 to 2147483647. Defaults to 0. */
+	cooldown?: number;
 	integration_types?: Array<ApplicationIntegrationType>;
 	contexts?: Array<InteractionContextType>;
 }
@@ -64,54 +71,41 @@ export interface CommandInfoBasics {
 /**
  * Typings for a command initiated by a message context menu action.
  * @internal
+ * @inline
  */
-export interface CommandInfoMessage extends CommandInfoBasics {
+interface CommandInfoMessage {
 	type: ApplicationCommandType.Message;
 }
 
 /**
  * Typings for a command initiated by a user profile context menu action.
  * @internal
+ * @inline
  */
-export interface CommandInfoUser extends CommandInfoBasics {
+interface CommandInfoUser {
 	type: ApplicationCommandType.User;
 }
 
 /**
  * Typings for a command initiated by a slash command.
  * @internal
+ * @inline
  */
-export interface CommandInfoChat extends CommandInfoBasics {
+interface CommandInfoChat {
 	type?: ApplicationCommandType.ChatInput;
 	description: string | Locales;
 	options?: ApplicationCommandOptionData[];
 }
 
 /**
- * Typings for a command.
- * @internal
+ * Configuration for a slash command or context menu command.
  */
-export type CommandInfo = CommandInfoChat | CommandInfoMessage | CommandInfoUser;
+export type CommandInfo = CommandInfoBasics & (CommandInfoChat | CommandInfoMessage | CommandInfoUser);
 
 /**
- * This is used by Echo internally to export command info to Discord.
- *
- * @internal
+ * Checks if a user has permission to run a command.
  */
-export type CommandInfoExport = CommandInfo & {
-	name: string;
-	nameLocalizations: LocalesPartial;
-	description: string;
-	descriptionLocalizations: LocalesPartial;
-	nsfw: boolean;
-	contexts: Array<InteractionContextType> | null;
-};
-
-/**
- * Typings for A function that checks if a user has permission to run a command.
- * @internal
- */
-export type CommandHasPermission<Inst = Echo> = (bot: Inst, int: Interaction) => Promise<boolean>;
+export type CommandHasPermission<Inst = Echo> = (bot: Inst, int: Interaction) => Awaitable<boolean>;
 
 export interface CommandSubGroup<T = Command> {
 	name: string | Locales;
@@ -127,17 +121,26 @@ export interface CommandSubGroup<T = Command> {
 export class Command<Inst = Echo> {
 	name: Locales;
 	description: Locales;
-	type: CommandInfo['type'];
+	type: NonNullable<CommandInfo['type']>;
 	integration_types: ApplicationIntegrationType[];
 	contexts: InteractionContextType[];
 	options: ApplicationCommandOptionData[] = [];
-	subcommands: Command<Inst>[] = [];
-	#_handlers: CommandHandler<Inst, keyof CommandInteractionHandlers<Inst>> = {};
+	#subcommandDefinitions: (Command<Inst> | CommandSubGroup<Command<Inst>>)[] = [];
+	#_handlers: Partial<CommandInteractionHandlers<Inst>> = {};
 	checkPermission: CommandHasPermission<Inst>;
 	ownersOnly: boolean;
 	nsfw: boolean;
+	/** Default member permissions sent to Discord. Use null to clear the restriction. */
+	default_member_permissions: PermissionResolvable | null;
+	/** Per-user cooldown in milliseconds. A parent command shares its cooldown across its subcommands. */
+	cooldown: number;
 
 	constructor(info: CommandInfo) {
+		const cooldown = info.cooldown ?? 0;
+		if (!Number.isInteger(cooldown) || cooldown < 0 || cooldown > 2_147_483_647) {
+			throw new Error('Command cooldown must be an integer from 0 to 2147483647 milliseconds.');
+		}
+		this.cooldown = cooldown;
 		this.name = info.name instanceof Locales ? info.name : set_locales({ default: info.name });
 		this.ownersOnly = info.owners_only ?? false;
 		info.type = info.type ?? ApplicationCommandType.ChatInput;
@@ -145,96 +148,119 @@ export class Command<Inst = Echo> {
 		if (info.type === ApplicationCommandType.ChatInput) {
 			this.description =
 				info.description instanceof Locales ? info.description : set_locales({ default: info.description });
-			this.options = info.options ?? [];
+			this.options = [...(info.options ?? [])];
 		} else {
-			this.description = set_locales({ default: '' });
+			this.description = new Locales([['default', '']]);
 		}
 		this.integration_types = info.integration_types ?? [];
 		this.contexts = info.contexts ?? [];
-		this.checkPermission = () => Promise.resolve(true);
+		this.checkPermission = () => true;
 		this.nsfw = info.nsfw ?? false;
+		this.default_member_permissions = info.default_member_permissions ?? null;
 	}
 
-	#_numSort = (a: number, b: number) => a - b;
-
-	get global(): boolean {
-		if (this.integration_types.includes(ApplicationIntegrationType.UserInstall)) return true;
-		if (this.contexts.includes(InteractionContextType.BotDM)) return true;
-		if (this.contexts.includes(InteractionContextType.PrivateChannel)) return true;
-		return false;
+	/** The current subcommands and their default group names. */
+	get subcommands(): { command: Command<Inst>; group?: string }[] {
+		return this.#subcommandDefinitions.flatMap((definition) => {
+			if (definition instanceof Command) return [{ command: definition }];
+			const group = definition.name instanceof Locales ? definition.name.default : definition.name;
+			return definition.commands.map((command) => ({ command, group }));
+		});
 	}
 
 	addSubCommandGroup(group: CommandSubGroup<Command<Inst>>): this {
-		const opts: Partial<ApplicationCommandOptionData> = {
+		this.options.push({
 			type: ApplicationCommandOptionType.SubcommandGroup,
-			options: group.commands.map((c) => {
-				const opts: Partial<ApplicationCommandSubCommandData> = {
-					type: ApplicationCommandOptionType.Subcommand,
-				};
-				opts.name = c.name.get('default');
-				if (c.description instanceof Locales) {
-					opts.description = c.description.get('default');
-					if (c.description.size > 1) opts.descriptionLocalizations = c.description.toJSON();
-				}
-				if (c.name.size > 1) opts.nameLocalizations = c.name.toJSON();
-				if (c.options.length > 0) opts.options = c.options as ApplicationCommandSubCommandData['options'];
-				return opts as ApplicationCommandSubCommandData;
-			}),
-		};
-		if (group.name instanceof Locales) {
-			opts.name = group.name.get('default');
-			if (group.name.size > 1) opts.nameLocalizations = group.name.toJSON();
-		} else opts.name = group.name;
-
-		if (group.description instanceof Locales) {
-			opts.description = group.description.get('default');
-			if (group.description.size > 1) opts.descriptionLocalizations = group.description.toJSON();
-		} else opts.description = group.description;
-
-		this.options.push(opts as ApplicationCommandOptionData);
-
-		for (const cmd of group.commands) {
-			cmd.name.set('default', `${group.name} ${cmd.name.get('default')}`);
-			this.subcommands.push(cmd);
-		}
-
+			get name() {
+				return group.name instanceof Locales ? group.name.default : group.name;
+			},
+			get nameLocalizations() {
+				return group.name instanceof Locales ? group.name.toJSON() : undefined;
+			},
+			get description() {
+				return group.description instanceof Locales ? group.description.default : group.description;
+			},
+			get descriptionLocalizations() {
+				return group.description instanceof Locales ? group.description.toJSON() : undefined;
+			},
+			get options() {
+				return group.commands.map((command) => command.#_subcommandOption());
+			},
+		});
+		this.#subcommandDefinitions.push(group);
 		return this;
 	}
 
 	addSubCommands(cmds: Command<Inst>[]): this {
-		this.subcommands.push(...cmds);
-		for (const cmd of cmds) {
-			const opts: Partial<ApplicationCommandOptionData> = {
-				type: ApplicationCommandOptionType.Subcommand,
-			};
-			if (cmd.options.length > 0) opts.options = cmd.options as ApplicationCommandSubCommandData['options'];
-			opts.name = cmd.name.get('default');
-			opts.description = cmd.description.get('default');
-			if (cmd.name.size > 1) opts.nameLocalizations = cmd.name.toJSON();
-			if (cmd.description.size > 1) opts.descriptionLocalizations = cmd.description.toJSON();
-			this.options.push(opts as ApplicationCommandOptionData);
-		}
+		this.options.push(...cmds.map((command) => command.#_subcommandOption()));
+		this.#subcommandDefinitions.push(...cmds);
 		return this;
 	}
 
-	commandInfo(): CommandInfoExport {
-		const res: Partial<CommandInfoExport> = {
-			type: this.type,
+	#_subcommandOption(): ApplicationCommandSubCommandData {
+		const command = this;
+		return {
+			type: ApplicationCommandOptionType.Subcommand,
+			get name() {
+				return command.name.default;
+			},
+			get nameLocalizations() {
+				return command.name.toJSON();
+			},
+			get description() {
+				return command.description.default;
+			},
+			get descriptionLocalizations() {
+				return command.description.toJSON();
+			},
+			get options() {
+				return command.options as ApplicationCommandSubCommandData['options'];
+			},
 		};
-		res.name = this.name.get('default');
-		res.description = this.description.get('default');
-		if (this.description.size > 1) res.descriptionLocalizations = this.description.toJSON();
-		if (this.name.size > 1) res.nameLocalizations = this.name.toJSON();
-		if (this.description && this.description.size > 1) res.descriptionLocalizations = this.description.toJSON();
-		if (res.type === ApplicationCommandType.ChatInput) if (this.options.length > 0) res.options = this.options;
-		if (this.nsfw) res.nsfw = true;
-
-		res.integration_types =
-			this.integration_types.length > 0 ? this.integration_types.sort(this.#_numSort) : undefined;
-		res.contexts = (this.contexts.length > 0 ? this.contexts.sort(this.#_numSort) : null) as typeof res.contexts;
-		return res as CommandInfoExport;
 	}
 
+	commandInfo(): ApplicationCommandData {
+		const info = {
+			name: this.name.default,
+			nameLocalizations: this.name.toJSON(),
+			nsfw: this.nsfw,
+			defaultMemberPermissions: this.default_member_permissions,
+			integrationTypes: this.integration_types.length ? this.integration_types : undefined,
+			contexts: this.contexts.length ? this.contexts : undefined,
+		};
+		if (this.type !== ApplicationCommandType.ChatInput) return { ...info, type: this.type };
+		return {
+			...info,
+			type: this.type,
+			description: this.description.default,
+			descriptionLocalizations: this.description.toJSON(),
+			options: this.options,
+		};
+	}
+
+	/**
+	 * Registers a callback for an interaction kind. The kind determines the callback's interaction type.
+	 * Calling this again with the same kind replaces the previous callback.
+	 *
+	 * @param type One of `chat_input`, `button`, `modal_submit`, `select_menu`,
+	 * `user_context_menu`, `message_context_menu`, or `autocomplete`.
+	 * @param handler Receives the Echo client and the interaction for the selected kind.
+	 *
+	 * @example Respond to a slash command
+	 * ```ts
+	 * const ping = new Command({ name: 'ping', description: 'Check if the bot is online' })
+	 *   .addHandler('chat_input', (_bot, interaction) => interaction.reply('Pong!'));
+	 * ```
+	 *
+	 * @example Handle a confirmation button
+	 * Use `bot.id(interaction, 'confirm')` when creating the button in the slash command handler.
+	 * ```ts
+	 * command.addHandler('button', (bot, interaction) => {
+	 *   if (bot.action(interaction) !== 'confirm') return;
+	 *   return interaction.reply('Confirmed!');
+	 * });
+	 * ```
+	 */
 	addHandler<T extends keyof CommandInteractionHandlers<Inst>>(
 		type: T,
 		handler: CommandInteractionHandlers<Inst>[T],

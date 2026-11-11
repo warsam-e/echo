@@ -15,6 +15,6 @@ export default <T extends Echo>() =>
 			},
 		],
 	}).addHandler('chat_input', (_, int) => {
-		const string = int.options.getString('string', true);
-		return int.reply(string);
+		const content = int.options.getString('string', true);
+		return int.reply({ content, allowedMentions: { parse: [] } });
 	});
