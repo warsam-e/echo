@@ -7,6 +7,7 @@ import {
 	type ButtonInteraction,
 	ButtonStyle,
 	ComponentType,
+	type InteractionCollector,
 	type InteractionEditReplyOptions,
 	type InteractionReplyOptions,
 	type JSONEncodable,
@@ -50,6 +51,11 @@ export interface ScrollableData<Data extends ScrollableDataType> {
 	 * @default "Failed to get data."
 	 */
 	fail_msg?: ScrollableContent;
+	/**
+	 * The message shown without pagination controls when data returns an empty array.
+	 * @default "No results."
+	 */
+	empty_msg?: ScrollableContent;
 	/** Loads the list of items when the paginator opens or reloads. */
 	data: ScrollableDataFn<Data>;
 	/**
@@ -84,6 +90,10 @@ function pagePayload(page: ScrollableContent): InteractionEditReplyOptions {
 	};
 }
 
+function emptyPayload(message?: ScrollableContent): InteractionEditReplyOptions {
+	return pagePayload(message ?? { components: [new TextDisplayBuilder().setContent('No results.')] });
+}
+
 async function renderPage<Data extends ScrollableDataType>(options: ScrollableData<Data>, data: Data, index: number) {
 	const item = data[index];
 	if (item === undefined) throw new Error('Scrollable data has no page to display.');
@@ -100,6 +110,7 @@ class Scrollable<Data extends ScrollableDataType> {
 	#pending = 0;
 	#disabled = false;
 	#closed = false;
+	#collector?: InteractionCollector<ButtonInteraction>;
 
 	private constructor(options: ScrollableData<Data>, page: Page<Data>) {
 		this.#options = { ...options };
@@ -114,7 +125,12 @@ class Scrollable<Data extends ScrollableDataType> {
 		let session: Scrollable<Data>;
 		let message: Message;
 		try {
-			const page = await renderPage(options, await options.data(), 0);
+			const data = await options.data();
+			if (!data.length) {
+				await int.editReply(emptyPayload(options.empty_msg));
+				return;
+			}
+			const page = await renderPage(options, data, 0);
 			session = new Scrollable(options, page);
 			message = await int.editReply(
 				pagePayload({ ...page.content, components: session.#components(page, false) }),
@@ -168,6 +184,7 @@ class Scrollable<Data extends ScrollableDataType> {
 			filter: ({ customId }) => customId === previousId || customId === nextId || customId === reloadId,
 			idle: idleTimeout,
 		});
+		this.#collector = collector;
 		const initialIdle = this.#options.int.createdTimestamp + tokenLifetime - Date.now() - tokenExpiryBuffer;
 		if (initialIdle < idleTimeout) collector.resetTimer({ idle: Math.max(1, initialIdle) });
 
@@ -214,6 +231,13 @@ class Scrollable<Data extends ScrollableDataType> {
 			if (this.#closed) return;
 			const nextData = reload ? await this.#options.data() : data;
 			if (this.#closed) return;
+			if (!nextData.length) {
+				await this.#write(async () => {
+					await this.#latestInteraction.editReply(emptyPayload(this.#options.empty_msg));
+					this.#collector?.stop('empty');
+				});
+				return;
+			}
 			const nextPage = await renderPage(this.#options, nextData, nextIndex);
 			if (this.#closed) return;
 
