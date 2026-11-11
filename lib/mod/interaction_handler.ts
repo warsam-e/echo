@@ -1,6 +1,6 @@
 import { inspect } from 'node:util';
 import { type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
-import type { Echo, InteractionErrorReply } from '$index.ts';
+import type { Echo, InteractionReplyContent } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';
@@ -11,12 +11,19 @@ class PermissionDeniedError extends Error {
 	}
 }
 
+class CooldownError extends Error {
+	constructor(readonly remainingMs: number) {
+		super(`Try again in ${Math.ceil(remainingMs / 1000)}s.`);
+	}
+}
+
 /**
  * Handler for interactions.
  * @internal
  */
 export class InteractionHandler {
 	#_inst: Echo;
+	#cooldowns = new WeakMap<Command, Map<string, number>>();
 
 	/**
 	 * @hidden
@@ -83,7 +90,7 @@ export class InteractionHandler {
 	}
 
 	async #_replyToError(interaction: Interaction, error: unknown) {
-		if (!(error instanceof PermissionDeniedError)) console.error(error);
+		if (!(error instanceof PermissionDeniedError) && !(error instanceof CooldownError)) console.error(error);
 		if (!interaction.isRepliable() || interaction.replied) return;
 		if (!interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -99,15 +106,18 @@ export class InteractionHandler {
 		else await interaction.reply(reply);
 	}
 
-	async #_formatError(error: unknown): Promise<InteractionErrorReply> {
+	async #_formatError(error: unknown): Promise<InteractionReplyContent> {
 		if (error instanceof PermissionDeniedError) return { content: error.message };
 		try {
-			const reply = await this.#_inst.formatError?.(error);
+			const reply =
+				error instanceof CooldownError
+					? await this.#_inst.formatCooldown?.(error.remainingMs)
+					: await this.#_inst.formatError?.(error);
 			if (reply) return reply;
 		} catch (formatterError) {
 			console.error(formatterError);
 		}
-		return { content: 'Something went wrong.' };
+		return { content: error instanceof CooldownError ? error.message : 'Something went wrong.' };
 	}
 
 	/**
@@ -160,19 +170,34 @@ export class InteractionHandler {
 
 	async #_handleInteraction(type: keyof CommandInteractionHandlers<Echo>, int: Interaction): Promise<void> {
 		const cmds = this.resolveCommand(int);
-		if (cmds.length > 0) {
-			const maincmd = cmds[0];
-			if (!(await this.#_cmdPermHandler(maincmd, int))) {
-				throw new PermissionDeniedError();
+		for (const cmd of cmds) {
+			if (!(await this.#_cmdPermHandler(cmd, int))) throw new PermissionDeniedError();
+		}
+		if (int.isCommand()) this.#applyCooldown(cmds, int.user.id);
+		for (const cmd of cmds.toReversed()) await cmd.handle(type, this.#_inst, int);
+	}
+
+	#applyCooldown(commands: Command[], userId: string) {
+		const now = performance.now();
+		const remaining = Math.max(
+			0,
+			...commands.map((command) => (this.#cooldowns.get(command)?.get(userId) ?? 0) - now),
+		);
+		if (remaining > 0) throw new CooldownError(remaining);
+
+		for (const command of commands) {
+			if (!command.cooldown) continue;
+			let users = this.#cooldowns.get(command);
+			if (!users) {
+				users = new Map();
+				this.#cooldowns.set(command, users);
 			}
-			if (cmds.length > 1) {
-				const subcmd = cmds[1];
-				if (!(await this.#_cmdPermHandler(subcmd, int))) {
-					throw new PermissionDeniedError();
-				}
-				await subcmd.handle(type, this.#_inst, int);
-			}
-			await maincmd.handle(type, this.#_inst, int);
+			const expires = now + command.cooldown;
+			users.set(userId, expires);
+			const cooldowns = users;
+			setTimeout(() => {
+				if (cooldowns.get(userId) === expires) cooldowns.delete(userId);
+			}, command.cooldown).unref();
 		}
 	}
 }

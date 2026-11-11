@@ -62,6 +62,8 @@ export interface CommandInfoBasics {
 	nsfw?: boolean;
 	/** Default member permissions for the top-level command, shared by all its subcommands. */
 	default_member_permissions?: PermissionResolvable | null;
+	/** Per-user cooldown for command invocations in milliseconds, from 0 to 2147483647. Defaults to 0. */
+	cooldown?: number;
 	integration_types?: Array<ApplicationIntegrationType>;
 	contexts?: Array<InteractionContextType>;
 }
@@ -136,8 +138,15 @@ export class Command<Inst = Echo> {
 	nsfw: boolean;
 	/** Default member permissions sent to Discord. Use null to clear the restriction. */
 	default_member_permissions: PermissionResolvable | null;
+	/** Per-user cooldown in milliseconds. A parent command shares its cooldown across its subcommands. */
+	cooldown: number;
 
 	constructor(info: CommandInfo) {
+		const cooldown = info.cooldown ?? 0;
+		if (!Number.isInteger(cooldown) || cooldown < 0 || cooldown > 2_147_483_647) {
+			throw new Error('Command cooldown must be an integer from 0 to 2147483647 milliseconds.');
+		}
+		this.cooldown = cooldown;
 		this.name = info.name instanceof Locales ? info.name : set_locales({ default: info.name });
 		this.ownersOnly = info.owners_only ?? false;
 		info.type = info.type ?? ApplicationCommandType.ChatInput;

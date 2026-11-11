@@ -31,15 +31,15 @@ import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
 import pkg from '../package.json';
 
-type InteractionErrorFlag = MessageFlags.IsComponentsV2 | MessageFlags.SuppressEmbeds;
+type InteractionReplyFlag = MessageFlags.IsComponentsV2 | MessageFlags.SuppressEmbeds;
 
-/** Message content and styling returned by an interaction error formatter. */
-export type InteractionErrorReply = Pick<
+/** Message content and styling returned by Echo's reply formatters. */
+export type InteractionReplyContent = Pick<
 	InteractionReplyOptions,
 	'content' | 'embeds' | 'components' | 'files' | 'allowedMentions'
 > & {
-	/** Enables Components V2 or suppresses embeds in the error reply. */
-	flags?: InteractionErrorFlag | readonly InteractionErrorFlag[];
+	/** Enables Components V2 or suppresses embeds in the reply. */
+	flags?: InteractionReplyFlag | readonly InteractionReplyFlag[];
 };
 
 export interface EchoOptions {
@@ -55,7 +55,12 @@ export interface EchoOptions {
 	 * Echo uses “Something went wrong.” if the formatter is absent or throws.
 	 * New error replies are private. A deferred reply keeps its original visibility.
 	 */
-	formatError?: (error: unknown) => Awaitable<InteractionErrorReply>;
+	formatError?: (error: unknown) => Awaitable<InteractionReplyContent>;
+	/**
+	 * Formats the private reply when a user's command is on cooldown.
+	 * Receives the remaining wait in milliseconds. Echo supplies a default if omitted or if formatting throws.
+	 */
+	formatCooldown?: (remainingMs: number) => Awaitable<InteractionReplyContent>;
 }
 
 /**
@@ -71,6 +76,8 @@ class Echo extends Client {
 	echoVersion = pkg.version;
 	/** The formatter configured in {@link EchoOptions.formatError}. */
 	readonly formatError: EchoOptions['formatError'];
+	/** The cooldown reply formatter configured in {@link EchoOptions.formatCooldown}. */
+	readonly formatCooldown: EchoOptions['formatCooldown'];
 	#commandDefinitions = new Map<Command<this>, CommandScope>();
 	#initializationStarted = false;
 
@@ -83,6 +90,7 @@ class Echo extends Client {
 		this.name = opts.name;
 		this.color = opts.color;
 		this.formatError = opts.formatError;
+		this.formatCooldown = opts.formatCooldown;
 	}
 
 	/** @returns whether the bot is sharding */
