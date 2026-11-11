@@ -1,5 +1,5 @@
 import { inspect } from 'node:util';
-import { type Awaitable, type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
+import { type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
 import type { Echo, InteractionReplyContent } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
@@ -144,19 +144,12 @@ export class InteractionHandler {
 		return [root, child];
 	}
 
-	async #_asyncBool(result: Awaitable<boolean>): Promise<boolean> {
-		try {
-			return await result;
-		} catch {}
-		return false;
-	}
-
 	async #_cmdPermHandler(cmd: Command, int: Interaction): Promise<boolean> {
 		const cmd_name = cmd.name.get('default');
 		const check_passes = async () => {
 			if (this.#_inst.owners.has(int.user.id)) return true;
 			if (cmd.ownersOnly) return false;
-			return this.#_asyncBool(cmd.checkPermission(this.#_inst, int));
+			return cmd.checkPermission(this.#_inst, int);
 		};
 		const passed = await check_passes();
 		_echo_log(
