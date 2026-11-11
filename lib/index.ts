@@ -14,12 +14,13 @@ import {
 	type MessageComponentInteraction,
 	type MessageFlags,
 	type ModalSubmitInteraction,
-	resolveColor,
 	type RepliableInteraction,
+	resolveColor,
 	type Snowflake,
 	Team,
 	User,
 } from 'discord.js';
+import { Command } from '$mod/command.ts';
 import {
 	type CommandScope,
 	commandRoute,
@@ -29,7 +30,7 @@ import {
 	interactionCommandRoute,
 	resolveComponentCommandRoute,
 } from '$mod/command_route.ts';
-import { Command, InteractionHandler } from '$mod/index.ts';
+import { InteractionHandler } from '$mod/interaction_handler.ts';
 import { _echo_log } from '$mod/logging.ts';
 import { _register_cmds } from '$mod/register.ts';
 import pkg from '../package.json';

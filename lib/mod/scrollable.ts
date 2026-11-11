@@ -21,8 +21,7 @@ import {
 } from 'discord.js';
 
 // biome-ignore lint/suspicious/noExplicitAny: it's needed here
-export type ScrollableDataType = Array<Record<string, any>>;
-export type ScrollableDataFn<Data extends ScrollableDataType> = () => Awaitable<Data>;
+type ScrollableDataType = Array<Record<string, any>>;
 
 export type ScrollableContent = {
 	/** The Components V2 layout for the page. */
@@ -35,8 +34,6 @@ export type ScrollableContent = {
 	/** Files to upload with this page. */
 	files?: NonNullable<InteractionReplyOptions['files']>;
 };
-
-export type ScrollableControlType = 'initiator' | 'all';
 
 export interface ScrollableData<Data extends ScrollableDataType> {
 	/** The interaction whose reply will display the paginator. */
@@ -57,12 +54,12 @@ export interface ScrollableData<Data extends ScrollableDataType> {
 	 */
 	empty_msg?: ScrollableContent;
 	/** Loads the list of items when the paginator opens or reloads. */
-	data: ScrollableDataFn<Data>;
+	data: () => Awaitable<Data>;
 	/**
 	 * Who can control the scrollable.
 	 * @default 'initiator'
 	 */
-	controllable?: ScrollableControlType;
+	controllable?: 'initiator' | 'all';
 	/** Renders the current item and can load additional details for that page. */
 	match: (val: Data[number], index: number, array: Array<Data[number]>) => Awaitable<ScrollableContent>;
 }
@@ -80,8 +77,7 @@ type Page<Data extends ScrollableDataType> = {
 	content: ScrollableContent;
 };
 
-type ScrollableSession = { stop: () => Promise<void> };
-const sessions = new WeakMap<RepliableInteraction['client'], Map<string, ScrollableSession>>();
+const sessions = new WeakMap<RepliableInteraction['client'], Map<string, () => Promise<void>>>();
 
 /** Controls an active pagination session. */
 export interface ScrollableHandle {
@@ -135,26 +131,24 @@ class Scrollable<Data extends ScrollableDataType> {
 		const { int } = options;
 		if (!int.deferred && !int.replied) await int.deferReply();
 		const original = await int.fetchReply();
-		const active = sessions.get(int.client) ?? new Map<string, ScrollableSession>();
+		const active = sessions.get(int.client) ?? new Map<string, () => Promise<void>>();
 		sessions.set(int.client, active);
 		const previous = active.get(original.id);
-		const retiring = previous?.stop() ?? Promise.resolve();
+		const retiring = previous?.() ?? Promise.resolve();
 		let cancelled = false;
 		let listening = false;
 		let session: Scrollable<Data> | undefined;
 		let initialEdit: Promise<unknown> = Promise.resolve();
-		const current: ScrollableSession = {
-			stop: async () => {
-				cancelled = true;
-				const stopped = session ? session.#stop() : Promise.resolve();
-				await retiring;
-				await initialEdit.catch(() => {});
-				await stopped;
-			},
+		const retire = async () => {
+			cancelled = true;
+			const stopped = session ? session.#stop() : Promise.resolve();
+			await retiring;
+			await initialEdit.catch(() => {});
+			await stopped;
 		};
-		active.set(original.id, current);
+		active.set(original.id, retire);
 		const release = () => {
-			if (active.get(original.id) === current) active.delete(original.id);
+			if (active.get(original.id) === retire) active.delete(original.id);
 		};
 
 		try {
@@ -264,8 +258,7 @@ class Scrollable<Data extends ScrollableDataType> {
 				return false;
 			},
 		);
-		if (this.#closed || (this.#options.controllable !== 'all' && click.user.id !== this.#options.int.user.id))
-			return;
+		if (this.#options.controllable !== 'all' && click.user.id !== this.#options.int.user.id) return;
 
 		this.#pending++;
 		this.#queue = this.#queue.then(() => this.#handleClick(click.customId, acknowledged)).catch(console.error);
@@ -359,5 +352,3 @@ class Scrollable<Data extends ScrollableDataType> {
  * ```
  */
 export const create_scrollable = <Data extends ScrollableDataType>(data: ScrollableData<Data>) => Scrollable.init(data);
-
-export type { Scrollable };

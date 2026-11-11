@@ -1,4 +1,5 @@
 import {
+	type ApplicationCommandData,
 	ApplicationIntegrationType,
 	type ClientApplication,
 	type Guild,
@@ -6,12 +7,11 @@ import {
 	type Snowflake,
 } from 'discord.js';
 import type { Echo } from '$index.ts';
-import type { CommandInfoExport } from './command.ts';
 import type { CommandScope } from './command_route.ts';
 import { _echo_log } from './logging.ts';
 
-function rootCommands<Inst extends Echo>(bot: Inst, scope: CommandScope) {
-	const commands: CommandInfoExport[] = [];
+function rootCommands(bot: Echo, scope: CommandScope) {
+	const commands: ApplicationCommandData[] = [];
 	for (const [route, command] of bot.commands) {
 		const [commandScope, , , subcommand] = route.split('/');
 		if (commandScope === scope && subcommand === undefined) commands.push(command.commandInfo());
@@ -19,7 +19,7 @@ function rootCommands<Inst extends Echo>(bot: Inst, scope: CommandScope) {
 	return commands;
 }
 
-function globalCommands<Inst extends Echo>(bot: Inst, application: ClientApplication): CommandInfoExport[] {
+function globalCommands(bot: Echo, application: ClientApplication): ApplicationCommandData[] {
 	const installTypes = [ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall].filter(
 		(type) => application.integrationTypesConfig?.[type] !== undefined,
 	);
@@ -35,7 +35,7 @@ function globalCommands<Inst extends Echo>(bot: Inst, application: ClientApplica
 	});
 }
 
-function guildCommands<Inst extends Echo>(bot: Inst): CommandInfoExport[] {
+function guildCommands(bot: Echo): ApplicationCommandData[] {
 	return rootCommands(bot, 'guild').map((command) => ({
 		...command,
 		integrationTypes: undefined,
@@ -53,7 +53,7 @@ function matchesSettings<T>(desired: readonly T[] | undefined, current: readonly
 async function syncCommands(
 	bot: Echo,
 	manager: ClientApplication['commands'] | Guild['commands'],
-	desired: CommandInfoExport[],
+	desired: ApplicationCommandData[],
 	target: string,
 ): Promise<void> {
 	const current = await manager.fetch({ withLocalizations: true });
@@ -83,13 +83,13 @@ async function syncCommands(
 	);
 }
 
-export async function _register_cmds<Inst extends Echo>(bot: Inst) {
+export async function _register_cmds(bot: Echo) {
 	const application = bot.application;
 	if (!application) throw new Error('Application is not defined');
 
 	const guilds = guildCommands(bot);
 	const guildSyncs = new Map<Snowflake, Promise<void>>();
-	const syncGuild = (guild: Guild, commands: CommandInfoExport[]) => {
+	const syncGuild = (guild: Guild, commands: ApplicationCommandData[]) => {
 		const pending = guildSyncs.get(guild.id);
 		if (pending) return pending;
 		const sync = syncCommands(bot, guild.commands, commands, guild.name).finally(() => guildSyncs.delete(guild.id));

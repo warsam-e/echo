@@ -24,12 +24,12 @@ import type { Echo } from '$index.ts';
 import { Locales, set_locales } from './locales.ts';
 import type { ScrollableHandle } from './scrollable.ts';
 
-// biome-ignore lint/suspicious/noConfusingVoidType: it's intended
 export type CommandResponse = void | Promise<
+	// biome-ignore lint/suspicious/noConfusingVoidType: it's intended
 	InteractionResponse | InteractionCallbackResponse | ScrollableHandle | void | Message
 >;
 
-export type InteractionHadlerCB<T extends Interaction, Inst = Echo> = (bot: Inst, int: T) => CommandResponse;
+type InteractionHandlerCallback<T extends Interaction, Inst> = (bot: Inst, int: T) => CommandResponse;
 
 /**
  * Typings for interaction handlers.
@@ -37,24 +37,20 @@ export type InteractionHadlerCB<T extends Interaction, Inst = Echo> = (bot: Inst
  * @internal
  */
 export interface CommandInteractionHandlers<Inst = Echo> {
-	chat_input: InteractionHadlerCB<ChatInputCommandInteraction, Inst>;
-	button: InteractionHadlerCB<ButtonInteraction, Inst>;
-	modal_submit: InteractionHadlerCB<ModalSubmitInteraction, Inst>;
-	select_menu: InteractionHadlerCB<AnySelectMenuInteraction, Inst>;
-	user_context_menu: InteractionHadlerCB<UserContextMenuCommandInteraction, Inst>;
-	message_context_menu: InteractionHadlerCB<MessageContextMenuCommandInteraction, Inst>;
-	autocomplete: InteractionHadlerCB<AutocompleteInteraction, Inst>;
+	chat_input: InteractionHandlerCallback<ChatInputCommandInteraction, Inst>;
+	button: InteractionHandlerCallback<ButtonInteraction, Inst>;
+	modal_submit: InteractionHandlerCallback<ModalSubmitInteraction, Inst>;
+	select_menu: InteractionHandlerCallback<AnySelectMenuInteraction, Inst>;
+	user_context_menu: InteractionHandlerCallback<UserContextMenuCommandInteraction, Inst>;
+	message_context_menu: InteractionHandlerCallback<MessageContextMenuCommandInteraction, Inst>;
+	autocomplete: InteractionHandlerCallback<AutocompleteInteraction, Inst>;
 }
-
-export type CommandHandler<Inst, T extends keyof CommandInteractionHandlers<Inst>> = Partial<{
-	[K in T]: CommandInteractionHandlers<Inst>[K];
-}>;
 
 /**
  * The base info for a command.
  * @internal
  */
-export interface CommandInfoBasics {
+interface CommandInfoBasics {
 	name: string | Locales;
 	/**
 	 * @default false
@@ -76,7 +72,7 @@ export interface CommandInfoBasics {
  * Typings for a command initiated by a message context menu action.
  * @internal
  */
-export interface CommandInfoMessage extends CommandInfoBasics {
+interface CommandInfoMessage extends CommandInfoBasics {
 	type: ApplicationCommandType.Message;
 }
 
@@ -84,7 +80,7 @@ export interface CommandInfoMessage extends CommandInfoBasics {
  * Typings for a command initiated by a user profile context menu action.
  * @internal
  */
-export interface CommandInfoUser extends CommandInfoBasics {
+interface CommandInfoUser extends CommandInfoBasics {
 	type: ApplicationCommandType.User;
 }
 
@@ -92,28 +88,19 @@ export interface CommandInfoUser extends CommandInfoBasics {
  * Typings for a command initiated by a slash command.
  * @internal
  */
-export interface CommandInfoChat extends CommandInfoBasics {
+interface CommandInfoChat extends CommandInfoBasics {
 	type?: ApplicationCommandType.ChatInput;
 	description: string | Locales;
 	options?: ApplicationCommandOptionData[];
 }
 
 /**
- * Typings for a command.
- * @internal
+ * Configuration for a slash command or context menu command.
  */
 export type CommandInfo = CommandInfoChat | CommandInfoMessage | CommandInfoUser;
 
 /**
- * This is used by Echo internally to export command info to Discord.
- *
- * @internal
- */
-export type CommandInfoExport = ApplicationCommandData;
-
-/**
- * Typings for A function that checks if a user has permission to run a command.
- * @internal
+ * Checks if a user has permission to run a command.
  */
 export type CommandHasPermission<Inst = Echo> = (bot: Inst, int: Interaction) => Awaitable<boolean>;
 
@@ -136,7 +123,7 @@ export class Command<Inst = Echo> {
 	contexts: InteractionContextType[];
 	options: ApplicationCommandOptionData[] = [];
 	#subcommandDefinitions: (Command<Inst> | CommandSubGroup<Command<Inst>>)[] = [];
-	#_handlers: CommandHandler<Inst, keyof CommandInteractionHandlers<Inst>> = {};
+	#_handlers: Partial<CommandInteractionHandlers<Inst>> = {};
 	checkPermission: CommandHasPermission<Inst>;
 	ownersOnly: boolean;
 	nsfw: boolean;
@@ -229,7 +216,7 @@ export class Command<Inst = Echo> {
 		};
 	}
 
-	commandInfo(): CommandInfoExport {
+	commandInfo(): ApplicationCommandData {
 		const info = {
 			name: this.name.default,
 			nameLocalizations: this.name.toJSON(),

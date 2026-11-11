@@ -1,4 +1,9 @@
-export * from './command.ts';
-export { InteractionHandler } from './interaction_handler.ts';
-export * from './locales.ts';
-export * from './scrollable.ts';
+export {
+	Command,
+	type CommandHasPermission,
+	type CommandInfo,
+	type CommandResponse,
+	type CommandSubGroup,
+} from './command.ts';
+export { Locales, set_locales } from './locales.ts';
+export { create_scrollable, type ScrollableContent, type ScrollableData, type ScrollableHandle } from './scrollable.ts';

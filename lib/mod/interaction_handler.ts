@@ -1,15 +1,10 @@
 import { inspect } from 'node:util';
-import {
-	type Interaction,
-	type InteractionReplyOptions,
-	InteractionType,
-	MessageFlags,
-	type RepliableInteraction,
-} from 'discord.js';
+import chalk from 'chalk';
+import { type Interaction, InteractionType, MessageFlags, type RepliableInteraction } from 'discord.js';
 import type { Echo, InteractionReplyContent } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { componentCommandRoute, interactionCommandRoute, resolveComponentCommandRoute } from './command_route.ts';
-import { _echo_log, echo_color, green, red } from './logging.ts';
+import { _echo_log, echo_color } from './logging.ts';
 
 class PermissionDeniedError extends Error {
 	constructor() {
@@ -107,14 +102,12 @@ export class InteractionHandler {
 
 		const payload = await this.#_formatError(error, interaction);
 		if (interaction.replied) return;
-		if (interaction.deferred && interaction.ephemeral !== null) {
+		if (interaction.ephemeral !== null) {
 			await interaction.editReply(payload);
 			return;
 		}
 
-		const reply: InteractionReplyOptions = { ...payload, flags: [MessageFlags.Ephemeral, payload.flags ?? []] };
-		if (interaction.deferred) await interaction.followUp(reply);
-		else await interaction.reply(reply);
+		await interaction.followUp({ ...payload, flags: [MessageFlags.Ephemeral, payload.flags ?? []] });
 	}
 
 	async #_formatError(error: unknown, interaction: RepliableInteraction): Promise<InteractionReplyContent> {
@@ -157,16 +150,12 @@ export class InteractionHandler {
 
 	async #_cmdPermHandler(cmd: Command, int: Interaction): Promise<boolean> {
 		const cmd_name = cmd.name.get('default');
-		const check_passes = async () => {
-			if (this.#_inst.owners.has(int.user.id)) return true;
-			if (cmd.ownersOnly) return false;
-			return cmd.checkPermission(this.#_inst, int);
-		};
-		const passed = await check_passes();
+		const isOwner = this.#_inst.owners.has(int.user.id);
+		const passed = isOwner || (!cmd.ownersOnly && (await cmd.checkPermission(this.#_inst, int)));
 		_echo_log(
 			{ title: 'interaction_handler', bot: this.#_inst },
 			`${echo_color(`${int.user.displayName} [${int.user.id}]`)} using ${this.#_inst.botChalk(cmd_name)} → ${
-				passed ? green('passed') : red('failed')
+				passed ? chalk.green('passed') : chalk.red('failed')
 			}`,
 		);
 		return passed;

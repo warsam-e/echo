@@ -1,4 +1,3 @@
-import type { StringLike } from 'bun';
 import chalk from 'chalk';
 import type { Awaitable } from 'discord.js';
 import type { Echo } from '$index.ts';
@@ -15,7 +14,7 @@ export async function _echo_log(
 		cb?: () => Awaitable<unknown>;
 		bot: Echo | null;
 	},
-	...message: StringLike[]
+	...message: string[]
 ) {
 	const logTitle = bot?.isSharding ? `#${bot.shard?.ids.join(',')}_${title}` : title;
 	const label = echo_color(`[Echo / ${logTitle}]`);
@@ -25,7 +24,3 @@ export async function _echo_log(
 	const elapsed = performance.now() - start;
 	console.log(label, ...message, `(${elapsed.toFixed(1)} ms)`);
 }
-
-const { green, red } = chalk;
-
-export { green, red };
