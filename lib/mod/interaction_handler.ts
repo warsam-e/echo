@@ -1,5 +1,5 @@
 import { inspect } from 'node:util';
-import { type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
+import { type Awaitable, type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
 import type { Echo, InteractionReplyContent } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
@@ -144,9 +144,9 @@ export class InteractionHandler {
 		return [root, child];
 	}
 
-	async #_asyncBool(promise: Promise<boolean>): Promise<boolean> {
+	async #_asyncBool(result: Awaitable<boolean>): Promise<boolean> {
 		try {
-			return await promise;
+			return await result;
 		} catch {}
 		return false;
 	}

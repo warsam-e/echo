@@ -7,6 +7,7 @@ import {
 	ApplicationCommandType,
 	type ApplicationIntegrationType,
 	type AutocompleteInteraction,
+	type Awaitable,
 	type ButtonInteraction,
 	type ChatInputCommandInteraction,
 	type Interaction,
@@ -111,7 +112,7 @@ export type CommandInfoExport = ApplicationCommandData;
  * Typings for A function that checks if a user has permission to run a command.
  * @internal
  */
-export type CommandHasPermission<Inst = Echo> = (bot: Inst, int: Interaction) => Promise<boolean>;
+export type CommandHasPermission<Inst = Echo> = (bot: Inst, int: Interaction) => Awaitable<boolean>;
 
 export interface CommandSubGroup<T = Command> {
 	name: string | Locales;
@@ -160,7 +161,7 @@ export class Command<Inst = Echo> {
 		}
 		this.integration_types = info.integration_types ?? [];
 		this.contexts = info.contexts ?? [];
-		this.checkPermission = () => Promise.resolve(true);
+		this.checkPermission = () => true;
 		this.nsfw = info.nsfw ?? false;
 		this.default_member_permissions = info.default_member_permissions ?? null;
 	}
