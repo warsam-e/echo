@@ -23,10 +23,11 @@ import {
 import {
 	type CommandScope,
 	commandRoute,
+	commandRouteFingerprint,
 	componentAction,
-	componentCommandRoute,
 	componentId,
 	interactionCommandRoute,
+	resolveComponentCommandRoute,
 } from '$mod/command_route.ts';
 import { Command, InteractionHandler } from '$mod/index.ts';
 import { _echo_log } from '$mod/logging.ts';
@@ -161,11 +162,16 @@ class Echo extends Client {
 	#buildCommandRoutes() {
 		const routes = new Map<string, Command<this>>();
 		const registered = new Set<Command<this>>();
+		const fingerprints = new Map<string, string>();
 		const add = (route: string, command: Command<this>) => {
 			if (routes.get(route) === command) return;
 			if (routes.has(route)) throw new Error(`Duplicate command route: ${route}`);
 			if (registered.has(command))
 				throw new Error(`Command instance is already registered at another route: ${route}`);
+			const fingerprint = commandRouteFingerprint(route);
+			const existingRoute = fingerprints.get(fingerprint);
+			if (existingRoute) throw new Error(`Command route fingerprint collision: ${existingRoute} and ${route}`);
+			fingerprints.set(fingerprint, route);
 			routes.set(route, command);
 			registered.add(command);
 		};
@@ -207,6 +213,7 @@ class Echo extends Client {
 
 	/**
 	 * Creates a custom ID that routes a button, select menu, or modal submission to an Echo command.
+	 * Uses a stable route fingerprint if the full path would exceed Discord's 100-character limit.
 	 * @param target A registered command or subcommand instance, or an interaction with a registered route.
 	 * @param action An identifier for the control within that command.
 	 * @returns A custom ID to pass to `setCustomId()`.
@@ -228,7 +235,10 @@ class Echo extends Client {
 			}
 			throw new Error(`Command ${target.name.default} is not registered.`);
 		}
-		const route = 'customId' in target ? componentCommandRoute(target.customId) : interactionCommandRoute(target);
+		const route =
+			'customId' in target
+				? resolveComponentCommandRoute(target.customId, this.commands.keys())
+				: interactionCommandRoute(target);
 		if (!route || !this.commands.has(route)) throw new Error('Interaction has no registered command route.');
 		return componentId(route, action);
 	}

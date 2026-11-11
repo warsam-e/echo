@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import type { Echo, InteractionReplyContent } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
-import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
+import { componentCommandRoute, interactionCommandRoute, resolveComponentCommandRoute } from './command_route.ts';
 import { _echo_log, echo_color, green, red } from './logging.ts';
 
 class PermissionDeniedError extends Error {
@@ -137,7 +137,7 @@ export class InteractionHandler {
 	 */
 	resolveCommand(int: Interaction): Command[] {
 		if (int.isMessageComponent() || int.isModalSubmit()) {
-			const route = componentCommandRoute(int.customId);
+			const route = resolveComponentCommandRoute(int.customId, this.#_inst.commands.keys());
 			return route ? this.#_resolveRoute(route) : [];
 		}
 		if (!int.isCommand() && !int.isAutocomplete()) return [];

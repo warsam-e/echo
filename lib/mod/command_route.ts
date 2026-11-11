@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ApplicationCommandType, AutocompleteInteraction, CommandInteraction } from 'discord.js';
 
 export type CommandScope = 'global' | 'guild';
@@ -21,10 +22,16 @@ export function interactionCommandRoute(interaction: CommandInteraction | Autoco
 
 const componentPrefix = 'echo:';
 
+export function commandRouteFingerprint(route: string): string {
+	return createHash('sha256').update(route).digest().subarray(0, 12).toString('base64url');
+}
+
 export function componentId(route: string, action: string): string {
 	const id = `${componentPrefix}${route}:${action}`;
-	if (id.length > 100) throw new Error('Echo component IDs must be at most 100 characters.');
-	return id;
+	if (id.length <= 100) return id;
+	const compactId = `${componentPrefix}~${commandRouteFingerprint(route)}:${action}`;
+	if (compactId.length > 100) throw new Error('Echo component IDs must be at most 100 characters.');
+	return compactId;
 }
 
 export function componentCommandRoute(customId: string): string | undefined {
@@ -38,4 +45,14 @@ export function componentAction(customId: string): string | undefined {
 	const route = componentCommandRoute(customId);
 	if (route === undefined) return;
 	return customId.slice(componentPrefix.length + route.length + 1);
+}
+
+export function resolveComponentCommandRoute(customId: string, routes: Iterable<string>): string | undefined {
+	const route = componentCommandRoute(customId);
+	if (!route?.startsWith('~')) return route;
+	const fingerprint = route.slice(1);
+	for (const candidate of routes) {
+		if (commandRouteFingerprint(candidate) === fingerprint) return candidate;
+	}
+	throw new Error('Command not found.');
 }

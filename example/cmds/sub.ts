@@ -19,16 +19,8 @@ const handle_autocomplete = (_bot: Echo, int: AutocompleteInteraction) =>
 	int.respond(choices.map((value) => ({ name: value, value })));
 
 const handle_button = (bot: Echo, int: ButtonInteraction) => {
-	switch (int.customId) {
-		case bot.id(int, 'bar'):
-			return int.reply('You picked the original bar.');
-		case bot.id(int, 'bar2'):
-			return int.reply('You picked the second bar.');
-		case bot.id(int, 'bar3'):
-			return int.reply('You picked the third bar.');
-		default:
-			return int.deferUpdate();
-	}
+	const action = bot.action(int);
+	return int.reply([`Button clicked!`, `bot.action(int): ${action}`, `int.customId: ${int.customId}`].join('\n'));
 };
 
 const handle_chat = (bot: Echo, int: ChatInputCommandInteraction) => {
@@ -36,7 +28,10 @@ const handle_chat = (bot: Echo, int: ChatInputCommandInteraction) => {
 	if (!choices.includes(choice)) return int.reply('Choose bar, bar2, or bar3.');
 
 	const row = new ActionRowBuilder<ButtonBuilder>().addComponents([
-		new ButtonBuilder().setLabel(`Show ${choice}`).setCustomId(bot.id(int, choice)).setStyle(ButtonStyle.Primary),
+		new ButtonBuilder()
+			.setLabel(`Show ${choice}`)
+			.setCustomId(bot.id(int, `show-selected-option:${choice}`))
+			.setStyle(ButtonStyle.Primary),
 	]);
 	return int.reply({
 		components: [row],
@@ -77,6 +72,16 @@ export default new Command({
 		description: 'a group',
 		commands: [
 			new Command(command_info)
+				.addHandler('autocomplete', handle_autocomplete)
+				.addHandler('button', handle_button)
+				.addHandler('chat_input', handle_chat),
+		],
+	})
+	.addSubCommandGroup({
+		name: 'group1-with-a-very-very-long-tag',
+		description: 'Demonstrates compact component IDs for long routes',
+		commands: [
+			new Command({ ...command_info, name: 'foo-with-a-very-very-long-option' })
 				.addHandler('autocomplete', handle_autocomplete)
 				.addHandler('button', handle_button)
 				.addHandler('chat_input', handle_chat),
