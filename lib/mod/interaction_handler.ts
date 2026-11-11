@@ -1,5 +1,11 @@
 import { inspect } from 'node:util';
-import { type Interaction, type InteractionReplyOptions, InteractionType, MessageFlags } from 'discord.js';
+import {
+	type Interaction,
+	type InteractionReplyOptions,
+	InteractionType,
+	MessageFlags,
+	type RepliableInteraction,
+} from 'discord.js';
 import type { Echo, InteractionReplyContent } from '$index.ts';
 import type { Command, CommandInteractionHandlers } from './command.ts';
 import { componentCommandRoute, interactionCommandRoute } from './command_route.ts';
@@ -99,7 +105,7 @@ export class InteractionHandler {
 		if (!interaction.isRepliable() || interaction.replied) return;
 		if (!interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-		const payload = await this.#_formatError(error);
+		const payload = await this.#_formatError(error, interaction);
 		if (interaction.replied) return;
 		if (interaction.deferred && interaction.ephemeral !== null) {
 			await interaction.editReply(payload);
@@ -111,13 +117,13 @@ export class InteractionHandler {
 		else await interaction.reply(reply);
 	}
 
-	async #_formatError(error: unknown): Promise<InteractionReplyContent> {
+	async #_formatError(error: unknown, interaction: RepliableInteraction): Promise<InteractionReplyContent> {
 		if (error instanceof PermissionDeniedError) return { content: error.message };
 		try {
 			const reply =
 				error instanceof CooldownError
-					? await this.#_inst.formatCooldown?.(error.remainingMs)
-					: await this.#_inst.formatError?.(error);
+					? await this.#_inst.formatCooldown?.(error.remainingMs, interaction)
+					: await this.#_inst.formatError?.(error, interaction);
 			if (reply) return reply;
 		} catch (formatterError) {
 			console.error(formatterError);

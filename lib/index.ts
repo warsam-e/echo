@@ -15,6 +15,7 @@ import {
 	type MessageFlags,
 	type ModalSubmitInteraction,
 	resolveColor,
+	type RepliableInteraction,
 	type Snowflake,
 	Team,
 	User,
@@ -55,13 +56,15 @@ export interface EchoOptions {
 	 * Formats an unexpected interaction error for a user who is still waiting for a reply.
 	 * Echo uses “Something went wrong.” if the formatter is absent or throws.
 	 * New error replies are private. A deferred reply keeps its original visibility.
+	 * The second argument is the interaction that failed, including its locale and command context.
 	 */
-	formatError?: (error: unknown) => Awaitable<InteractionReplyContent>;
+	formatError?: (error: unknown, interaction: RepliableInteraction) => Awaitable<InteractionReplyContent>;
 	/**
 	 * Formats the private reply when a user's command is on cooldown.
 	 * Receives the remaining wait in milliseconds. Echo supplies a default if omitted or if formatting throws.
+	 * The second argument is the interaction that was blocked, including its locale and command context.
 	 */
-	formatCooldown?: (remainingMs: number) => Awaitable<InteractionReplyContent>;
+	formatCooldown?: (remainingMs: number, interaction: RepliableInteraction) => Awaitable<InteractionReplyContent>;
 }
 
 /**
