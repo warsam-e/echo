@@ -132,7 +132,7 @@ export class Command<Inst = Echo> {
 	integration_types: ApplicationIntegrationType[];
 	contexts: InteractionContextType[];
 	options: ApplicationCommandOptionData[] = [];
-	subcommands: { command: Command<Inst>; group?: string }[] = [];
+	#subcommandDefinitions: (Command<Inst> | CommandSubGroup<Command<Inst>>)[] = [];
 	#_handlers: CommandHandler<Inst, keyof CommandInteractionHandlers<Inst>> = {};
 	checkPermission: CommandHasPermission<Inst>;
 	ownersOnly: boolean;
@@ -155,7 +155,7 @@ export class Command<Inst = Echo> {
 		if (info.type === ApplicationCommandType.ChatInput) {
 			this.description =
 				info.description instanceof Locales ? info.description : set_locales({ default: info.description });
-			this.options = info.options ?? [];
+			this.options = [...(info.options ?? [])];
 		} else {
 			this.description = new Locales([['default', '']]);
 		}
@@ -166,36 +166,63 @@ export class Command<Inst = Echo> {
 		this.default_member_permissions = info.default_member_permissions ?? null;
 	}
 
+	/** The current subcommands and their default group names. */
+	get subcommands(): { command: Command<Inst>; group?: string }[] {
+		return this.#subcommandDefinitions.flatMap((definition) => {
+			if (definition instanceof Command) return [{ command: definition }];
+			const group = definition.name instanceof Locales ? definition.name.default : definition.name;
+			return definition.commands.map((command) => ({ command, group }));
+		});
+	}
+
 	addSubCommandGroup(group: CommandSubGroup<Command<Inst>>): this {
-		const name = group.name instanceof Locales ? group.name : set_locales({ default: group.name });
-		const description =
-			group.description instanceof Locales ? group.description : set_locales({ default: group.description });
 		this.options.push({
 			type: ApplicationCommandOptionType.SubcommandGroup,
-			name: name.default,
-			nameLocalizations: name.size > 1 ? name.toJSON() : undefined,
-			description: description.default,
-			descriptionLocalizations: description.size > 1 ? description.toJSON() : undefined,
-			options: group.commands.map((command) => command.#_subcommandOption()),
+			get name() {
+				return group.name instanceof Locales ? group.name.default : group.name;
+			},
+			get nameLocalizations() {
+				return group.name instanceof Locales ? group.name.toJSON() : undefined;
+			},
+			get description() {
+				return group.description instanceof Locales ? group.description.default : group.description;
+			},
+			get descriptionLocalizations() {
+				return group.description instanceof Locales ? group.description.toJSON() : undefined;
+			},
+			get options() {
+				return group.commands.map((command) => command.#_subcommandOption());
+			},
 		});
-		this.subcommands.push(...group.commands.map((command) => ({ command, group: name.default })));
+		this.#subcommandDefinitions.push(group);
 		return this;
 	}
 
 	addSubCommands(cmds: Command<Inst>[]): this {
 		this.options.push(...cmds.map((command) => command.#_subcommandOption()));
-		this.subcommands.push(...cmds.map((command) => ({ command })));
+		this.#subcommandDefinitions.push(...cmds);
 		return this;
 	}
 
 	#_subcommandOption(): ApplicationCommandSubCommandData {
+		const command = this;
 		return {
 			type: ApplicationCommandOptionType.Subcommand,
-			name: this.name.default,
-			nameLocalizations: this.name.size > 1 ? this.name.toJSON() : undefined,
-			description: this.description.default,
-			descriptionLocalizations: this.description.size > 1 ? this.description.toJSON() : undefined,
-			options: this.options.length ? (this.options as ApplicationCommandSubCommandData['options']) : undefined,
+			get name() {
+				return command.name.default;
+			},
+			get nameLocalizations() {
+				return command.name.toJSON();
+			},
+			get description() {
+				return command.description.default;
+			},
+			get descriptionLocalizations() {
+				return command.description.toJSON();
+			},
+			get options() {
+				return command.options as ApplicationCommandSubCommandData['options'];
+			},
 		};
 	}
 
